@@ -2,9 +2,9 @@ name: ChaoXing Auto Sign-in
 
 on:
   schedule:
-    # 每天北京时间 9:31 触发 (9:35 浮动的前沿)
-    # 9:31 Beijing Time = 1:31 UTC
-    - cron: '31 1 * * *'
+    # 每天北京时间 21:31 触发 (21:35 浮动的前沿)
+    # 21:31 Beijing Time = 13:31 UTC
+    - cron: '31 13 * * *'
   workflow_dispatch:
     inputs:
       custom_args:
@@ -33,7 +33,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests pycryptodome pillow
 
-      - name: Random Delay (Beijing Time 09:31 - 09:39)
+      - name: Random Delay (Beijing Time 21:31 - 21:39)
         if: github.event_name == 'schedule'
         run: |
           python -c "
