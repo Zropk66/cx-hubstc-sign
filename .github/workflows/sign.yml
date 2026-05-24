@@ -1,0 +1,91 @@
+name: ChaoXing Auto Sign-in
+
+on:
+  schedule:
+    # 每天北京时间 9:31 触发 (9:35 浮动的前沿)
+    # 9:31 Beijing Time = 1:31 UTC
+    - cron: '31 1 * * *'
+  workflow_dispatch:
+    inputs:
+      custom_args:
+        description: '自定义运行参数 (例如: --host xxx.chaoxing.com --device iPhone)'
+        required: false
+        default: ''
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pycryptodome pillow
+
+      - name: Random Delay (Beijing Time 09:31 - 09:39)
+        if: github.event_name == 'schedule'
+        run: |
+          python -c "
+          import random
+          import time
+          delay = random.randint(0, 480)
+          print(f'Random delay active: sleeping for {delay} seconds...')
+          time.sleep(delay)
+          print('Waking up, starting sign-in process.')
+          "
+
+      - name: Run Sign-in Script
+        env:
+          CHAOXING_USERNAME: ${{ secrets.CHAOXING_USERNAME }}
+          CHAOXING_PASSWORD: ${{ secrets.CHAOXING_PASSWORD }}
+        run: |
+          # 构建可选参数列表
+          ARGS=""
+          if [ ! -z "${{ vars.CHAOXING_HOST }}" ]; then
+            ARGS="$ARGS --host ${{ vars.CHAOXING_HOST }}"
+          fi
+          if [ ! -z "${{ vars.CHAOXING_LAT }}" ]; then
+            ARGS="$ARGS --lat ${{ vars.CHAOXING_LAT }}"
+          fi
+          if [ ! -z "${{ vars.CHAOXING_LNG }}" ]; then
+            ARGS="$ARGS --lng ${{ vars.CHAOXING_LNG }}"
+          fi
+          if [ ! -z "${{ vars.CHAOXING_ADDRESS }}" ]; then
+            ARGS="$ARGS --address \"${{ vars.CHAOXING_ADDRESS }}\""
+          fi
+          if [ ! -z "${{ vars.CHAOXING_DEVICE }}" ]; then
+            ARGS="$ARGS --device \"${{ vars.CHAOXING_DEVICE }}\""
+          fi
+
+          # 如果是手动触发且输入了 custom_args，则覆盖以上参数
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ ! -z "${{ github.event.inputs.custom_args }}" ]; then
+            echo "Running with custom dispatcher args: ${{ github.event.inputs.custom_args }}"
+            python sign.py ${{ github.event.inputs.custom_args }}
+          else
+            echo "Running with args: $ARGS"
+            python sign.py $ARGS
+          fi
+
+      - name: Commit and Push updated Cookies
+        run: |
+          if [ -n "$(git status --porcelain cookies.txt)" ]; then
+            echo "Cookies updated! Committing and pushing..."
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add cookies.txt
+            git commit -m "chore: auto-update cookies.txt [skip ci]"
+            git push
+          else
+            echo "Cookies did not change."
+          fi
