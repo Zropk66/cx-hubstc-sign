@@ -1,10 +1,10 @@
-name: ChaoXing Auto Sign-in
+name: ChaoXing Auto Sign
 
 on:
   schedule:
     # 每天北京时间 21:31 触发 (21:35 浮动的前沿)
     # 21:31 Beijing Time = 13:31 UTC
-    - cron: '25 14 * * *'
+    - cron: '40 14 * * *'
   workflow_dispatch:
     inputs:
       custom_args:
@@ -32,18 +32,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install requests pycryptodome pillow loguru
-
-      - name: Random Delay (Beijing Time 21:31 - 21:39)
-        if: github.event_name == 'schedule'
-        run: |
-          python -c "
-          import random
-          import time
-          delay = random.randint(0, 480)
-          print(f'Random delay active: sleeping for {delay} seconds...')
-          time.sleep(delay)
-          print('Waking up, starting sign-in process.')
-          "
 
       - name: Run Sign-in Script
         run: |
