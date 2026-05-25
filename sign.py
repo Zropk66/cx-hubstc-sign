@@ -21,21 +21,19 @@ from Crypto.Util.Padding import pad
 from PIL import Image
 from requests import Session
 
-# 设置控制台编码为 UTF-8，防止 Windows 上的输出乱码
 if sys.platform.startswith('win') and hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
 from loguru import logger
 
-# 移除默认的 handler 并添加自定义的控制台和文件 log 处理器
 logger.remove()
-# 控制台日志处理器（用于高等级重要通知，仅显示 INFO 级别以上）
+
 logger.add(
     sys.stdout,
     level="INFO",
     format="<green>{time:HH:mm:ss}</green> | <level>{level: <7}</level> | {message}"
 )
-# 文件日志处理器（用于深层排查与诊断，记录 DEBUG 级别及以上所有详细日志，只保留最近一周的日志）
+
 logger.add(
     "logs/log_{time}.log",
     level="DEBUG",
@@ -44,10 +42,8 @@ logger.add(
     retention="7 days"
 )
 
-# 用于自动生成签到照片的 1x1 黑色 JPEG 图像字节数据（如需要）
 DUMMY_JPG_BYTES = b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00C\x00\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\t\t\x08\n\x0c\x14\r\x0c\x0b\x0b\x0c\x19\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d\x1a\x1c\x1c$   \'",#\x1c\x1c(7),01444\x1f\'9=82<.342\xff\xc0\x00\x0b\x08\x00\x01\x00\x01\x01\x01\x11\x00\xff\xc4\x00\x1f\x00\x00\x01\x05\x01\x01\x01\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\xff\xc4\x00\xb5\x10\x00\x02\x01\x03\x03\x02\x04\x03\x05\x05\x04\x04\x00\x00\x01\x7d\x01\x02\x03\x00\x04\x11\x05\x12!1A\x06\x13Qa\x07"q\x142\x81\x91\xa1\x08#B\xb1\xc1\x15R\xd1\xf0$3br\x82\x92\xa2\xe1\x16\xf1\x09C\x17S\xc2\xa3\xb2\xff\xda\x00\x0c\x03\x01\x00\x02\x11\x03\x11\x00?\x00\xed\xfc\x80\xff\xd9'
 
-# 模拟移动端 App 环境的标准请求头
 MOBILE_HEADERS = {
     "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 (schild:c69a8a0f7107e385cfaa3a45194f99ef) (device:iPhone13,2) Language/zh-Hant com.ssreader.ChaoXingStudy/ChaoXingStudy_3_6.7.3_ios_phone_202602111700_314 (@Kalimdor)_14898949611323310882",
     "Accept": "application/json, text/plain, */*",
@@ -56,7 +52,6 @@ MOBILE_HEADERS = {
     "Connection": "keep-alive"
 }
 
-# 全局解析参数与配置，在 main() 初始化后可供全局访问
 _args_global: argparse.Namespace
 _config_global = {}
 
@@ -65,12 +60,11 @@ def log_http_details(method: str, url: str, headers: dict = None, req_body: any 
     """
     封装 raw HTTP 请求和响应细节，将其记录到 loguru DEBUG 日志中
     """
-    # 检查是否为静态资源或 HTML URL，跳过详细日志记录
     lower_url = url.lower()
-    if any(ext in lower_url for ext in [".js", ".css", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".html", ".htm"]) or "/static/js/" in lower_url:
+    if any(ext in lower_url for ext in [".js", ".css", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".html",
+                                        ".htm"]) or "/static/js/" in lower_url:
         return
 
-    # 检查响应头是否为 HTML 类型，如果是则跳过详细日志记录
     if resp is not None:
         content_type = resp.headers.get("Content-Type", "").lower()
         if "text/html" in content_type:
@@ -98,7 +92,6 @@ def resolve_value(arg_value, config_key, default_val, config_dict=None, type_con
     if arg_value is not None:
         return type_conv(arg_value) if type_conv else arg_value
 
-    # 尝试从环境变量获取 (键值转为大写，如 BARK_DEVICE_KEY)
     env_key = config_key.upper()
     env_val = os.environ.get(env_key)
     if env_val is not None and env_val != "":
@@ -147,7 +140,6 @@ def fetch_mobile_version(host: str) -> str:
         if resp.status_code != 200:
             return default_v
 
-        # 提取 index.js 的路径
         match = re.search(r'src=["\'](/mobile/static/js/index\.[0-9a-f]+\.js)["\']', resp.text)
         if not match:
             match = re.search(r'(/mobile/static/js/index\.[0-9a-f]+\.js)', resp.text)
@@ -163,7 +155,6 @@ def fetch_mobile_version(host: str) -> str:
         if js_resp.status_code != 200:
             return default_v
 
-        # 寻找 version hash (例如: e="dfdec28a5",void 0!==e)
         version_match = re.search(r'e=["\']([0-9a-f]{9})["\']\s*,\s*void\s+0\s*!==\s*e', js_resp.text)
         if version_match:
             v_val = version_match.group(1)
@@ -217,7 +208,8 @@ def validate_cookies(cookies: dict) -> bool:
                 logger.success("Cookie 校验成功: 用户处于登录状态")
                 return True
             else:
-                logger.warning(f"Cookie 校验失败: 检测到未登录或跳转。特征: passport2.chaoxing.com={is_passport_redirect}, login_keyword={has_login_keyword}")
+                logger.warning(
+                    f"Cookie 校验失败: 检测到未登录或跳转。特征: passport2.chaoxing.com={is_passport_redirect}, login_keyword={has_login_keyword}")
                 logger.debug(f"跳转/未登录响应内容预览 (前1000字符): {resp.text[:1000]}")
         else:
             logger.warning(f"Cookie 校验异常: 服务器返回状态码 {resp.status_code}")
@@ -310,7 +302,6 @@ def perform_image_upload(session: requests.Session, image_bytes: bytes, filename
     token = token_data.get("_token")
     logger.info(f"成功获取上传 Token: {token[:10]}...")
 
-    # 计算图片的 MD5 作为校验值 (crc)
     md5 = hashlib.md5(image_bytes).hexdigest()
     logger.info(f"图片上传 - 步骤 2: 检查云端文件是否存在, Hash: {md5}...")
 
@@ -320,7 +311,6 @@ def perform_image_upload(session: requests.Session, image_bytes: bytes, filename
     status_data = status_resp.json()
 
     if status_data.get("result") and status_data.get("exist"):
-        # 云端已存在相同文件，直接复用 (秒传机制)
         file_info = status_data.get("data", {})
         logger.success("云端已存在匹配文件！直接复用...")
         return {
@@ -332,7 +322,6 @@ def perform_image_upload(session: requests.Session, image_bytes: bytes, filename
     logger.info("图片上传 - 步骤 3: 上传新文件...")
     upload_url = "https://pan-yz.chaoxing.com/upload?_from=mobilelearn"
 
-    # 使用 multipart/form-data 上传
     files = {
         "file": (filename, image_bytes, "image/jpeg")
     }
@@ -453,7 +442,6 @@ def main():
     global _args_global, _config_global
     _args_global = args
 
-    # 打印环境元数据
     logger.debug("=== Running Environment Metadata ===")
     logger.debug(f"OS: {platform.system()} {platform.release()} ({sys.platform})")
     logger.debug(f"Python Version: {platform.python_version()}")
@@ -465,7 +453,6 @@ def main():
         logger.debug(f"GitHub Run ID: {os.environ.get('GITHUB_RUN_ID')}")
     logger.debug("=====================================")
 
-    # 读取 config.json
     config_data = {}
     config_path = os.path.join(os.getcwd(), "config.json")
     if os.path.exists(config_path):
@@ -513,14 +500,11 @@ def main():
 
     logger.success(f"成功加载有效 Cookie。UID: {cookies.get('UID', '未知')}")
 
-    # 动态获取 mobile 页面版本 v
     mobile_v = fetch_mobile_version(host)
 
-    # 初始化会话
     session = requests.Session()
     session.cookies.update(cookies)
 
-    # 1. 机构 Token 交换 (ermLogin)
     logger.info("正在交换机构 Token (ermLogin)...")
     login_url = f"https://{host}/pedestal/user/ermLogin"
     login_headers = {
@@ -545,11 +529,9 @@ def main():
         send_bark_notification("error", f"Token 交换异常: {e}")
         sys.exit(0)
 
-    # 2. 更新会话，设置 Token 相关的请求头与 Cookie
     session.headers.update({"X-Token": token})
     session.cookies["cx_qmx_token"] = token
 
-    # 3. 获取 user 角色信息 (getInfox)
     logger.info("正在获取学生角色信息 (getInfox)...")
     info_url = f"https://{host}/pedestal/user/getInfox?id="
     info_headers = {
@@ -558,7 +540,6 @@ def main():
     }
     try:
         resp = session.get(info_url, headers=info_headers, timeout=15)
-        # log_http_details("GET", info_url, headers=info_headers, resp=resp)
         resp_data = resp.json()
         if not resp_data.get("success"):
             logger.error(f"获取角色信息失败: {resp_data}")
@@ -573,7 +554,6 @@ def main():
         send_bark_notification("error", f"获取角色信息异常: {e}")
         sys.exit(0)
 
-    # 4. 获取签到学生状态与批次元数据 (getStudentInfo)
     logger.info("正在拉取签到批次与规则数据...")
     metadata_url = f"https://{host}/housemaster/sg/roomCheckPunch/getStudentInfo?cqfs=1"
     metadata_headers = {
@@ -584,7 +564,6 @@ def main():
         resp = session.get(metadata_url, headers=metadata_headers, timeout=15)
         log_http_details("GET", metadata_url, headers=metadata_headers, resp=resp)
         resp_data = resp.json()
-        # logger.debug(f"签到元数据: {resp_data}")
         if not resp_data.get("success"):
             if str(resp_data.get("code"))[:3] == "200":
                 logger.info(resp_data.get("message"))
@@ -620,13 +599,11 @@ def main():
         send_bark_notification("error", f"获取签到元数据异常: {e}")
         sys.exit(0)
 
-    # 5. 解析签到位置 (GPS 及详细地址)
     target_lat = lat
     target_lng = lng
     target_address = address
 
     logger.debug(f"输入参数 - lat: {lat}, lng: {lng}, address: '{address}'")
-    # 如果用户没有传入自定义位置，则从批次规则中解析允许的签到点
     if not target_lat or not target_lng or not target_address:
         raw_qdwz = batch.get("qdwz", "[]")
         logger.debug(f"从批次获取到的原始 qdwz 位置配置: {raw_qdwz}")
@@ -636,7 +613,8 @@ def main():
             logger.debug(f"解析后的位置规则列表共包含 {len(allowed_locations)} 个候选位置")
             if allowed_locations:
                 for idx, loc in enumerate(allowed_locations):
-                    logger.debug(f"候选位置 {idx}: name='{loc.get('name')}', lat={loc.get('lat')}, lng={loc.get('lng')}")
+                    logger.debug(
+                        f"候选位置 {idx}: name='{loc.get('name')}', lat={loc.get('lat')}, lng={loc.get('lng')}")
                 loc = allowed_locations[0]
                 logger.success(f"找到允许的签到位置规则: {loc.get('name')}")
                 if not target_lat:
@@ -653,7 +631,6 @@ def main():
         except Exception as e:
             logger.warning(f"解析位置规则失败: {e}")
 
-    # 如果仍未解析到有效位置，则使用预设的默认学校坐标
     if not target_lat or not target_lng or not target_address:
         target_lat = 30.477347181407705
         target_lng = 114.41138545505815
@@ -662,7 +639,6 @@ def main():
 
     logger.success(f"最终采用位置: {target_address} ({target_lat}, {target_lng})")
 
-    # 6. 上传照片 (如果签到规则要求拍照)
     photo_obj = None
     if batch.get("status") == "1":
         logger.warning("规则提示: 此批次要求进行 照片 签到。")
@@ -706,7 +682,6 @@ def main():
             send_bark_notification("error", f"上传照片失败: {e}")
             sys.exit(0)
 
-    # 7. 构建并加密签到打卡参数
     now = datetime.datetime.now()
     punch_time = now.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -727,12 +702,10 @@ def main():
 
     logger.debug(f"签到明文载荷: {json.dumps(punch_params, ensure_ascii=False, indent=2)}")
 
-    # 执行加密
     plaintext_str = json.dumps(punch_params, ensure_ascii=False, separators=(',', ':'))
     encrypted_hex = encrypt_des_hex(plaintext_str, "QRCODENC")
     logger.debug(f"加密密文十六进制 (长度={len(encrypted_hex)}): {encrypted_hex}")
 
-    # 8. 提交打卡请求
     logger.info("正在提交打卡请求...")
     clockin_url = f"https://{host}/housemaster/sg/roomCheckPunch/clockIn"
 
@@ -751,7 +724,6 @@ def main():
         resp = session.post(clockin_url, headers=clockin_headers, json=clockin_data, timeout=15)
         log_http_details("POST", clockin_url, headers=clockin_headers, req_body=clockin_data, resp=resp)
 
-        # 解析返回结果
         if resp.status_code == 200:
             try:
                 resp_json = resp.json()
