@@ -46,9 +46,6 @@ jobs:
           "
 
       - name: Run Sign-in Script
-        env:
-          BARK_DEVICE_KEY: ${{ secrets.BARK_DEVICE_KEY }}
-          BARK_DEVICE_TOKEN: ${{ secrets.BARK_DEVICE_TOKEN }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ ! -z "${{ github.event.inputs.custom_args }}" ]; then
             echo "Running with custom dispatcher args: ${{ github.event.inputs.custom_args }}"
