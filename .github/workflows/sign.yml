@@ -4,7 +4,7 @@ on:
   schedule:
     # 每天北京时间 21:31 触发 (21:35 浮动的前沿)
     # 21:31 Beijing Time = 13:31 UTC
-    - cron: '14 2 * * *'
+    - cron: '20 2 * * *'
   workflow_dispatch:
     inputs:
       custom_args:
