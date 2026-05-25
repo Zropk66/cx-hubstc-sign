@@ -65,10 +65,16 @@ def log_http_details(method: str, url: str, headers: dict = None, req_body: any 
     """
     封装 raw HTTP 请求和响应细节，将其记录到 loguru DEBUG 日志中
     """
-    # 检查是否为静态资源 URL，跳过静态资源的详细日志记录
+    # 检查是否为静态资源或 HTML URL，跳过详细日志记录
     lower_url = url.lower()
-    if any(ext in lower_url for ext in [".js", ".css", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico"]) or "/static/js/" in lower_url:
+    if any(ext in lower_url for ext in [".js", ".css", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".html", ".htm"]) or "/static/js/" in lower_url:
         return
+
+    # 检查响应头是否为 HTML 类型，如果是则跳过详细日志记录
+    if resp is not None:
+        content_type = resp.headers.get("Content-Type", "").lower()
+        if "text/html" in content_type:
+            return
 
     logger.debug("=== HTTP Request Details ===")
     logger.debug(f"Method: {method} | URL: {url}")
