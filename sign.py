@@ -9,6 +9,7 @@ import hashlib
 import io
 import json
 import os
+import platform
 import re
 import sys
 import traceback
@@ -34,12 +35,13 @@ logger.add(
     level="INFO",
     format="<green>{time:HH:mm:ss}</green> | <level>{level: <7}</level> | {message}"
 )
-# 文件日志处理器（用于深层排查与诊断，记录 DEBUG 级别及以上所有详细日志）
+# 文件日志处理器（用于深层排查与诊断，记录 DEBUG 级别及以上所有详细日志，只保留最近一周的日志）
 logger.add(
     "logs/log_{time}.log",
     level="DEBUG",
     encoding="utf-8",
-    format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <7} | {name}:{function}:{line} - {message}"
+    format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <7} | {name}:{function}:{line} - {message}",
+    retention="7 days"
 )
 
 # 用于自动生成签到照片的 1x1 黑色 JPEG 图像字节数据（如需要）
@@ -63,6 +65,11 @@ def log_http_details(method: str, url: str, headers: dict = None, req_body: any 
     """
     封装 raw HTTP 请求和响应细节，将其记录到 loguru DEBUG 日志中
     """
+    # 检查是否为静态资源 URL，跳过静态资源的详细日志记录
+    lower_url = url.lower()
+    if any(ext in lower_url for ext in [".js", ".css", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico"]) or "/static/js/" in lower_url:
+        return
+
     logger.debug("=== HTTP Request Details ===")
     logger.debug(f"Method: {method} | URL: {url}")
     if headers:
@@ -130,7 +137,7 @@ def fetch_mobile_version(host: str) -> str:
             "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148"
         }
         resp = requests.get(index_url, headers=headers, timeout=10)
-        # log_http_details("GET", index_url, headers=headers, resp=resp)
+        log_http_details("GET", index_url, headers=headers, resp=resp)
         if resp.status_code != 200:
             return default_v
 
@@ -146,7 +153,7 @@ def fetch_mobile_version(host: str) -> str:
         js_url = f"https://{host}{js_path}"
 
         js_resp = requests.get(js_url, headers=headers, timeout=10)
-        # log_http_details("GET", js_url, headers=headers, resp=js_resp)
+        log_http_details("GET", js_url, headers=headers, resp=js_resp)
         if js_resp.status_code != 200:
             return default_v
 
@@ -176,7 +183,12 @@ def validate_cookies(cookies: dict) -> bool:
     """
     验证 Cookie 是否有效
     """
-    if not cookies or not cookies.get("_uid"):
+    logger.debug("开始校验 Cookie...")
+    if not cookies:
+        logger.warning("Cookie 校验失败: Cookie 字典为空")
+        return False
+    if not cookies.get("_uid"):
+        logger.warning("Cookie 校验失败: 缺失重要键值 _uid")
         return False
 
     session = requests.Session()
@@ -191,10 +203,19 @@ def validate_cookies(cookies: dict) -> bool:
             data=data,
             timeout=10,
         )
-        # log_http_details("POST", url, headers=dict(session.headers), req_body=data, resp=resp)
+        log_http_details("POST", url, headers=dict(session.headers), req_body=data, resp=resp)
         if resp.status_code == 200:
-            if "passport2.chaoxing.com" not in resp.text and "login" not in resp.text.lower():
+            is_passport_redirect = "passport2.chaoxing.com" in resp.text
+            has_login_keyword = "login" in resp.text.lower()
+            if not is_passport_redirect and not has_login_keyword:
+                logger.success("Cookie 校验成功: 用户处于登录状态")
                 return True
+            else:
+                logger.warning(f"Cookie 校验失败: 检测到未登录或跳转。特征: passport2.chaoxing.com={is_passport_redirect}, login_keyword={has_login_keyword}")
+                logger.debug(f"跳转/未登录响应内容预览 (前1000字符): {resp.text[:1000]}")
+        else:
+            logger.warning(f"Cookie 校验异常: 服务器返回状态码 {resp.status_code}")
+            logger.debug(f"状态码异常响应内容: {resp.text}")
     except Exception as e:
         logger.warning(f"校验 Cookie 请求异常: {e}")
 
@@ -408,6 +429,7 @@ def send_bark_notification(status: str, content: str = ''):
 
 
 def main():
+    start_time = datetime.datetime.now()
     parser = argparse.ArgumentParser(description="签到请求脚本。")
     parser.add_argument("--cookies", type=str, default=None, help="Cookie 文件路径")
     parser.add_argument("--host", type=str, default=None, help="签到域名")
@@ -424,6 +446,18 @@ def main():
     args = parser.parse_args()
     global _args_global, _config_global
     _args_global = args
+
+    # 打印环境元数据
+    logger.debug("=== Running Environment Metadata ===")
+    logger.debug(f"OS: {platform.system()} {platform.release()} ({sys.platform})")
+    logger.debug(f"Python Version: {platform.python_version()}")
+    is_github_actions = os.environ.get("GITHUB_ACTIONS") == "true"
+    logger.debug(f"Is GitHub Actions: {is_github_actions}")
+    if is_github_actions:
+        logger.debug(f"GitHub Repository: {os.environ.get('GITHUB_REPOSITORY')}")
+        logger.debug(f"GitHub Workflow: {os.environ.get('GITHUB_WORKFLOW')}")
+        logger.debug(f"GitHub Run ID: {os.environ.get('GITHUB_RUN_ID')}")
+    logger.debug("=====================================")
 
     # 读取 config.json
     config_data = {}
@@ -459,7 +493,7 @@ def main():
                 logger.error(
                     "检测到在 GitHub Actions 环境中运行，但未检测到账号或密码配置！请在 config.json 中配置 username 和 password。")
                 send_bark_notification("error", "GitHub Actions 缺少账号密码配置")
-                sys.exit(1)
+                sys.exit(0)
             username = input("请输入手机号/用户名: ").strip()
             password = input("请输入密码: ").strip()
         login_session = login_chaoxing(username, password)
@@ -469,7 +503,7 @@ def main():
         else:
             logger.error("登录失败，无法继续签到。")
             send_bark_notification("error", "登录失败，请检查账号密码")
-            sys.exit(1)
+            sys.exit(0)
 
     logger.success(f"成功加载有效 Cookie。UID: {cookies.get('UID', '未知')}")
 
@@ -496,14 +530,14 @@ def main():
             logger.error(f"Token 交换失败: {resp_data}")
             send_bark_notification("error",
                                    f"Token 交换失败: {resp_data.get('msg', '未知错误')}")
-            sys.exit(1)
+            sys.exit(0)
 
         token = resp_data["data"]["token"]
         logger.success(f"成功获取 Token: {token[:15]}...")
     except Exception as e:
         logger.error(f"Token 交换过程中出错: {e}")
         send_bark_notification("error", f"Token 交换异常: {e}")
-        sys.exit(1)
+        sys.exit(0)
 
     # 2. 更新会话，设置 Token 相关的请求头与 Cookie
     session.headers.update({"X-Token": token})
@@ -523,7 +557,7 @@ def main():
         if not resp_data.get("success"):
             logger.error(f"获取角色信息失败: {resp_data}")
             send_bark_notification("error", "获取学生角色信息失败")
-            sys.exit(1)
+            sys.exit(0)
 
         current_role_id = resp_data["data"]["currentRoleId"]
         logger.success(f"成功获取当前角色 ID: {current_role_id}")
@@ -531,7 +565,7 @@ def main():
     except Exception as e:
         logger.error(f"获取角色信息时出错: {e}")
         send_bark_notification("error", f"获取角色信息异常: {e}")
-        sys.exit(1)
+        sys.exit(0)
 
     # 4. 获取签到学生状态与批次元数据 (getStudentInfo)
     logger.info("正在拉取签到批次与规则数据...")
@@ -552,7 +586,7 @@ def main():
                 sys.exit(0)
             else:
                 send_bark_notification("error", "获取签到元数据失败")
-            sys.exit(1)
+            sys.exit(0)
 
         meta_data = resp_data.get("data", {})
         batch = meta_data.get("batch")
@@ -578,27 +612,36 @@ def main():
     except Exception as e:
         logger.error(f"获取签到元数据时出错: {e}")
         send_bark_notification("error", f"获取签到元数据异常: {e}")
-        sys.exit(1)
+        sys.exit(0)
 
     # 5. 解析签到位置 (GPS 及详细地址)
     target_lat = lat
     target_lng = lng
     target_address = address
 
+    logger.debug(f"输入参数 - lat: {lat}, lng: {lng}, address: '{address}'")
     # 如果用户没有传入自定义位置，则从批次规则中解析允许的签到点
     if not target_lat or not target_lng or not target_address:
+        raw_qdwz = batch.get("qdwz", "[]")
+        logger.debug(f"从批次获取到的原始 qdwz 位置配置: {raw_qdwz}")
         logger.info("正在从批次规则中解析位置要求...")
         try:
-            allowed_locations = json.loads(batch.get("qdwz", "[]"))
+            allowed_locations = json.loads(raw_qdwz)
+            logger.debug(f"解析后的位置规则列表共包含 {len(allowed_locations)} 个候选位置")
             if allowed_locations:
+                for idx, loc in enumerate(allowed_locations):
+                    logger.debug(f"候选位置 {idx}: name='{loc.get('name')}', lat={loc.get('lat')}, lng={loc.get('lng')}")
                 loc = allowed_locations[0]
                 logger.success(f"找到允许的签到位置规则: {loc.get('name')}")
                 if not target_lat:
                     target_lat = loc.get("lat")
+                    logger.debug(f"采用规则纬度 lat: {target_lat}")
                 if not target_lng:
                     target_lng = loc.get("lng")
+                    logger.debug(f"采用规则经度 lng: {target_lng}")
                 if not target_address:
                     target_address = f"湖北省武汉市洪山区软件园东路，湖北科技职业学院(关山校区)内，{loc.get('name')}"
+                    logger.debug(f"采用规则地址 address: '{target_address}'")
             else:
                 logger.info("批次中未配置任何位置规则，使用默认位置。")
         except Exception as e:
@@ -609,6 +652,7 @@ def main():
         target_lat = 30.477347181407705
         target_lng = 114.41138545505815
         target_address = "湖北省武汉市洪山区软件园东路，湖北科技职业学院(关山校区)"
+        logger.debug("因未解析到规则位置或参数不全，采用预设默认学校坐标")
 
     logger.success(f"最终采用位置: {target_address} ({target_lat}, {target_lng})")
 
@@ -654,7 +698,7 @@ def main():
         except Exception as e:
             logger.error(f"上传照片失败: {e}")
             send_bark_notification("error", f"上传照片失败: {e}")
-            sys.exit(1)
+            sys.exit(0)
 
     # 7. 构建并加密签到打卡参数
     now = datetime.datetime.now()
@@ -722,10 +766,12 @@ def main():
     except Exception as e:
         logger.error(f"提交打卡请求时发生错误: {e}")
         send_bark_notification("error", f"打卡提交异常: {e}")
-        sys.exit(1)
+        sys.exit(0)
 
     logger.info("=" * 60)
     logger.info(f"{' ' * 22}打卡流程执行完毕")
+    elapsed_time = datetime.datetime.now() - start_time
+    logger.info(f"本次运行共耗时: {elapsed_time}")
     logger.info("=" * 60)
 
 
