@@ -287,7 +287,7 @@ def perform_image_upload(session: requests.Session, image_bytes: bytes, filename
     return upload_data.get("data", {})
 
 
-def send_bark_notification(subtitle: str = '', content: str = ''):
+def send_bark_notification(status: str, content: str = ''):
     """
     通过 Bark 服务推送消息，支持设备 Token 注册重试机制
     """
@@ -310,16 +310,20 @@ def send_bark_notification(subtitle: str = '', content: str = ''):
         print("[*] 未配置推送密钥 (bark_device_key) 和设备 Token (bark_device_token)，跳过推送")
         return
 
+    status_map = {
+        "success": "✅",
+        "error": "❌",
+        "info": "🔔"
+    }
+    emoji = status_map.get(status.lower() if hasattr(status, "lower") else str(status), "🔔")
     title = "寝室定位打卡"
-    subtitle = subtitle or ""
-    body = content or "暂无详情"
+    body = f"{emoji} {content}" if content else f"{emoji} 暂无详情"
 
     def send(key):
         url = "https://api.day.app/push"
         payload = {
             "device_key": key,
             "title": title,
-            "subtitle": subtitle,
             "body": body,
             "group": "超星自动签到"
         }
@@ -406,7 +410,7 @@ def main():
             if os.environ.get("GITHUB_ACTIONS") or os.environ.get("CI"):
                 print("[-] 错误: 检测到在 GitHub Actions 环境中运行，但未检测到账号或密码配置！")
                 print("    请在 config.json 中配置 username 和 password。")
-                send_bark_notification("❌ 失败", "GitHub Actions 缺少账号密码配置")
+                send_bark_notification("error", "GitHub Actions 缺少账号密码配置")
                 sys.exit(1)
             username = input("请输入手机号/用户名: ").strip()
             password = input("请输入密码: ").strip()
@@ -416,7 +420,7 @@ def main():
             cookies = load_cookies(cookies_path)
         else:
             print("[-] 登录失败，无法继续签到。")
-            send_bark_notification("❌ 失败", "登录失败，请检查账号密码")
+            send_bark_notification("error", "登录失败，请检查账号密码")
             sys.exit(1)
 
     print(f"[+] 成功加载有效 Cookie。UID: {cookies.get('UID', '未知')}")
@@ -441,7 +445,7 @@ def main():
         resp_data = resp.json()
         if not resp_data.get("success"):
             print(f"[-] Token 交换失败: {resp_data}")
-            send_bark_notification("❌ 失败",
+            send_bark_notification("error",
                                    f"Token 交换失败: {resp_data.get('msg', '未知错误')}")
             sys.exit(1)
 
@@ -449,7 +453,7 @@ def main():
         print(f"[+] 成功获取 Token: {token[:15]}...")
     except Exception as e:
         print(f"[-] Token 交换过程中出错: {e}")
-        send_bark_notification("❌ 失败", f"Token 交换异常: {e}")
+        send_bark_notification("error", f"Token 交换异常: {e}")
         sys.exit(1)
 
     # 2. 更新会话，设置 Token 相关的请求头与 Cookie
@@ -468,7 +472,7 @@ def main():
         resp_data = resp.json()
         if not resp_data.get("success"):
             print(f"[-] 获取角色信息失败: {resp_data}")
-            send_bark_notification("❌ 失败", "获取学生角色信息失败")
+            send_bark_notification("error", "获取学生角色信息失败")
             sys.exit(1)
 
         current_role_id = resp_data["data"]["currentRoleId"]
@@ -476,7 +480,7 @@ def main():
         session.cookies["cx_qmx_role"] = current_role_id
     except Exception as e:
         print(f"[-] 获取角色信息时出错: {e}")
-        send_bark_notification("❌ 失败", f"获取角色信息异常: {e}")
+        send_bark_notification("error", f"获取角色信息异常: {e}")
         sys.exit(1)
 
     # 4. 获取签到学生状态与批次元数据 (getStudentInfo)
@@ -492,10 +496,10 @@ def main():
         if not resp_data.get("success"):
             print(f"[-] 获取签到元数据失败: {resp_data}")
             if str(resp_data.get("code"))[:3] == "200":
-                send_bark_notification("🔔 提示", resp_data.get("message"))
+                send_bark_notification("info", resp_data.get("message"))
                 sys.exit(0)
             else:
-                send_bark_notification("❌ 失败", "获取签到元数据失败")
+                send_bark_notification("error", "获取签到元数据失败")
             sys.exit(1)
 
         meta_data = resp_data.get("data", {})
@@ -509,7 +513,7 @@ def main():
                 print(
                     f"[!] 提示: 今日已签到状态为: {meta_data['result']['jg']} (时间: {meta_data['result'].get('sj')})")
                 msg += f"\n今日已签到状态: {meta_data['result']['jg']} (时间: {meta_data['result'].get('sj')})"
-            send_bark_notification("🔔 签到已跳过", msg)
+            send_bark_notification("info", msg)
             sys.exit(0)
 
         print("[+] 发现进行中的签到批次:")
@@ -522,7 +526,7 @@ def main():
     except Exception as e:
         print(f"[-] 获取签到元数据时出错: {e}")
         traceback.print_exc()
-        send_bark_notification("❌ 失败", f"获取签到元数据异常: {e}")
+        send_bark_notification("error", f"获取签到元数据异常: {e}")
         sys.exit(1)
 
     # 5. 解析签到位置 (GPS 及详细地址)
@@ -598,7 +602,7 @@ def main():
             print(f"[+] 照片对象构建成功: objectid={object_id}")
         except Exception as e:
             print(f"[-] 上传照片失败: {e}")
-            send_bark_notification("❌ 失败", f"上传照片失败: {e}")
+            send_bark_notification("error", f"上传照片失败: {e}")
             sys.exit(1)
 
     # 7. 构建并加密签到打卡参数
@@ -656,17 +660,18 @@ def main():
                 resp_json = resp.json()
                 if resp_json.get("success") or resp_json.get("code") == 20000:
                     msg = f"签到已提交！\n反馈: {resp_json.get('msg') or resp_json.get('message') or '成功'}"
-                    send_bark_notification("✅ 成功", msg)
+                    send_bark_notification("success", msg)
                 else:
                     msg = f"签到提交失败: {resp_json.get('msg') or resp_json.get('message') or resp.text}"
-                    send_bark_notification("❌ 失败", msg)
+                    send_bark_notification("error", msg)
             except Exception:
-                send_bark_notification("✅ 成功", f"HTTP {resp.status_code}\n打卡请求已发出")
+                send_bark_notification("info", f"HTTP {resp.status_code}\n打卡请求已发出 (无法解析返回结果)")
+                traceback.print_exc()
         else:
-            send_bark_notification("❌ 失败", f"HTTP {resp.status_code}\n{resp.text[:100]}")
+            send_bark_notification("error", f"HTTP {resp.status_code}\n{resp.text[:100]}")
     except Exception as e:
         print(f"[-] 提交打卡请求时发生错误: {e}")
-        send_bark_notification("❌ 失败", f"打卡提交异常: {e}")
+        send_bark_notification("error", f"打卡提交异常: {e}")
         sys.exit(1)
 
     print("=" * 60)
