@@ -493,8 +493,9 @@ def main():
     try:
         resp = session.get(metadata_url, headers=metadata_headers, timeout=15)
         resp_data = resp.json()
+        print(f"[*] 返回值: {resp_data}")
         if not resp_data.get("success"):
-            print(f"[-] 获取签到元数据失败: {resp_data}")
+            # print(f"[-] 获取签到元数据失败: {resp_data}")
             if str(resp_data.get("code"))[:3] == "200":
                 send_bark_notification("info", resp_data.get("message"))
                 sys.exit(0)
