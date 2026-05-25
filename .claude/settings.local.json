@@ -3,7 +3,18 @@
     "allow": [
       "mcp__codegraph__codegraph_files",
       "WebSearch",
-      "Bash(npx wrangler *)"
+      "Bash(npx wrangler *)",
+      "Bash(python *)",
+      "Bash(where python *)",
+      "Bash(where py *)",
+      "Bash(.venv/Scripts/python.exe *)",
+      "Bash(CHAOXING_HOST=\"hbkjzy.qmx.chaoxing.com\" .venv/Scripts/python.exe *)",
+      "Bash(CHAOXING_HOST=\"invalid.chaoxing.com\" .venv/Scripts/python.exe *)",
+      "Bash(uv run *)",
+      "Bash(gh api *)",
+      "WebFetch(domain:bark.day.app)",
+      "Bash(.venv/Scripts/python -m py_compile sign.py)",
+      "Bash(.venv/Scripts/python sign.py --help)"
     ]
   }
 }

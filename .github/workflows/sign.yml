@@ -47,34 +47,14 @@ jobs:
 
       - name: Run Sign-in Script
         env:
-          CHAOXING_USERNAME: ${{ secrets.CHAOXING_USERNAME }}
-          CHAOXING_PASSWORD: ${{ secrets.CHAOXING_PASSWORD }}
+          BARK_DEVICE_KEY: ${{ secrets.BARK_DEVICE_KEY }}
+          BARK_DEVICE_TOKEN: ${{ secrets.BARK_DEVICE_TOKEN }}
         run: |
-          # 构建可选参数列表
-          ARGS=""
-          if [ ! -z "${{ vars.CHAOXING_HOST }}" ]; then
-            ARGS="$ARGS --host ${{ vars.CHAOXING_HOST }}"
-          fi
-          if [ ! -z "${{ vars.CHAOXING_LAT }}" ]; then
-            ARGS="$ARGS --lat ${{ vars.CHAOXING_LAT }}"
-          fi
-          if [ ! -z "${{ vars.CHAOXING_LNG }}" ]; then
-            ARGS="$ARGS --lng ${{ vars.CHAOXING_LNG }}"
-          fi
-          if [ ! -z "${{ vars.CHAOXING_ADDRESS }}" ]; then
-            ARGS="$ARGS --address \"${{ vars.CHAOXING_ADDRESS }}\""
-          fi
-          if [ ! -z "${{ vars.CHAOXING_DEVICE }}" ]; then
-            ARGS="$ARGS --device \"${{ vars.CHAOXING_DEVICE }}\""
-          fi
-
-          # 如果是手动触发且输入了 custom_args，则覆盖以上参数
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ ! -z "${{ github.event.inputs.custom_args }}" ]; then
             echo "Running with custom dispatcher args: ${{ github.event.inputs.custom_args }}"
             python sign.py ${{ github.event.inputs.custom_args }}
           else
-            echo "Running with args: $ARGS"
-            python sign.py $ARGS
+            python sign.py
           fi
 
       - name: Commit and Push updated Cookies

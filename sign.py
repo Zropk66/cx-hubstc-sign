@@ -11,15 +11,17 @@ import json
 import os
 import re
 import sys
+import traceback
 from pathlib import Path
 
 import requests
 from Crypto.Cipher import DES, AES
 from Crypto.Util.Padding import pad
 from PIL import Image
+from requests import Session
 
 # 设置控制台编码为 UTF-8，防止 Windows 上的输出乱码
-if sys.platform.startswith('win'):
+if sys.platform.startswith('win') and hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
 # 用于自动生成签到照片的 1x1 黑色 JPEG 图像字节数据（如需要）
@@ -33,6 +35,31 @@ MOBILE_HEADERS = {
     "Accept-Encoding": "gzip, deflate, br",
     "Connection": "keep-alive"
 }
+
+# 全局解析参数与配置，在 main() 初始化后可供全局访问
+_args_global: argparse.Namespace
+_config_global = {}
+
+
+def resolve_value(arg_value, config_key, default_val, config_dict=None, type_conv=None):
+    """
+    统一解析参数顺序：命令行参数 > 环境变量 > config.json 配置文件 > 脚本默认值
+    """
+    if arg_value is not None:
+        return type_conv(arg_value) if type_conv else arg_value
+
+    # 尝试从环境变量获取 (键值转为大写，如 BARK_DEVICE_KEY)
+    env_key = config_key.upper()
+    env_val = os.environ.get(env_key)
+    if env_val is not None and env_val != "":
+        return type_conv(env_val) if type_conv else env_val
+
+    cfg = config_dict if config_dict is not None else _config_global
+    if cfg and config_key in cfg:
+        val = cfg[config_key]
+        if val is not None and val != "":
+            return type_conv(val) if type_conv else val
+    return default_val
 
 
 def load_cookies(cookies_path: str) -> dict:
@@ -132,7 +159,7 @@ def validate_cookies(cookies: dict) -> bool:
     return False
 
 
-def login_chaoxing(username, password) -> requests.Session:
+def login_chaoxing(username, password) -> Session | None:
     """
     使用手机号/用户名和密码登录超星
     """
@@ -212,7 +239,7 @@ def perform_image_upload(session: requests.Session, image_bytes: bytes, filename
     token = token_data.get("_token")
     print(f"[+] 成功获取上传 Token: {token[:10]}...")
 
-    # 计算图片内容的 MD5 作为校验值 (crc)
+    # 计算图片的 MD5 作为校验值 (crc)
     md5 = hashlib.md5(image_bytes).hexdigest()
     print(f"[*] 图片上传 - 步骤 2: 检查云端文件是否存在, Hash: {md5}...")
 
@@ -260,31 +287,127 @@ def perform_image_upload(session: requests.Session, image_bytes: bytes, filename
     return upload_data.get("data", {})
 
 
+def send_bark_notification(subtitle: str = '', content: str = ''):
+    """
+    通过 Bark 服务推送消息，支持设备 Token 注册重试机制
+    """
+    if _args_global:
+        bark_device_key = resolve_value(_args_global.bark_device_key, "bark_device_key", "")
+        bark_device_token = resolve_value(_args_global.bark_device_token, "bark_device_token", "")
+    else:
+        config_path = os.path.join(os.getcwd(), "config.json")
+        cfg = {}
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+            except Exception:
+                traceback.print_exc()
+        bark_device_key = resolve_value(None, "bark_device_key", "", config_dict=cfg)
+        bark_device_token = resolve_value(None, "bark_device_token", "", config_dict=cfg)
+
+    if not bark_device_key and not bark_device_token:
+        print("[*] 未配置推送密钥 (bark_device_key) 和设备 Token (bark_device_token)，跳过推送")
+        return
+
+    title = "寝室定位打卡"
+    subtitle = subtitle or ""
+    body = content or "暂无详情"
+
+    def send(key):
+        url = "https://api.day.app/push"
+        payload = {
+            "device_key": key,
+            "title": title,
+            "subtitle": subtitle,
+            "body": body,
+            "group": "超星自动签到"
+        }
+        resp = requests.post(url, json=payload, timeout=10)
+        if resp.status_code != 200:
+            raise Exception(f"HTTP {resp.status_code}: {resp.text[:100]}")
+        return True
+
+    if bark_device_key:
+        try:
+            if send(bark_device_key):
+                print("[+] Bark 消息推送成功")
+                return
+        except Exception as e:
+            print(f"[-] 默认推送密钥 (bark_device_key) 推送失败: {e}")
+            if not bark_device_token:
+                return
+
+    if bark_device_token:
+        print("[*] 尝试使用设备 Token 注册推送...")
+        try:
+            reg_url = f"https://api.day.app/register?devicetoken={bark_device_token}"
+            reg_resp = requests.get(reg_url, timeout=10)
+            reg_data = reg_resp.json()
+            new_key = reg_data.get("data", {}).get("key") or reg_data.get("key")
+            if new_key:
+                if send(new_key):
+                    print("[+] 使用设备 Token 注册并推送成功")
+                    return
+            else:
+                raise Exception("未能在注册响应中找到 key")
+        except Exception as e:
+            print(f"[-] 使用设备 Token 注册推送失败: {e}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="签到请求脚本。")
-    parser.add_argument("--cookies", type=str, default="", help="Cookie 文件路径")
-    parser.add_argument("--host", type=str, default="hbkjzy.qmx.chaoxing.com", help="签到域名")
-    parser.add_argument("--address", type=str, default="", help="自定义签到地址 (可选)")
-    parser.add_argument("--lat", type=float, default=0.0, help="自定义纬度 (可选)")
-    parser.add_argument("--lng", type=float, default=0.0, help="自定义经度 (可选)")
-    parser.add_argument("--photo", type=str, default="", help="要上传的照片文件路径 (可选)")
-    parser.add_argument("--device", type=str, default="iPhone 12", help="模拟设备名称")
+    parser.add_argument("--cookies", type=str, default=None, help="Cookie 文件路径")
+    parser.add_argument("--host", type=str, default=None, help="签到域名")
+    parser.add_argument("--address", type=str, default=None, help="自定义签到地址 (可选)")
+    parser.add_argument("--lat", type=float, default=None, help="自定义纬度 (可选)")
+    parser.add_argument("--lng", type=float, default=None, help="自定义经度 (可选)")
+    parser.add_argument("--photo", type=str, default=None, help="要上传的照片文件路径 (可选)")
+    parser.add_argument("--device", type=str, default=None, help="模拟设备名称")
+    parser.add_argument("--bark-device-key", type=str, default=None, help="Bark 推送密钥 (可选)")
+    parser.add_argument("--bark-device-token", type=str, default=None, help="Bark 设备 Token (可选)")
+    parser.add_argument("--username", type=str, default=None, help="用户名/手机号 (可选)")
+    parser.add_argument("--password", type=str, default=None, help="密码 (可选)")
 
     args = parser.parse_args()
+    global _args_global, _config_global
+    _args_global = args
+
+    # 读取 config.json
+    config_data = {}
+    config_path = os.path.join(os.getcwd(), "config.json")
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config_data = json.load(f)
+            _config_global = config_data
+            print(f"[+] 成功读取配置文件: {config_path}")
+        except Exception as e:
+            print(f"[!] 读取 config.json 失败: {e}")
+
+    cookies_path = resolve_value(args.cookies, "cookies", "cookies.txt")
+    host = resolve_value(args.host, "host", "hbkjzy.qmx.chaoxing.com")
+    address = resolve_value(args.address, "address", "")
+    lat = resolve_value(args.lat, "lat", 0.0, type_conv=float)
+    lng = resolve_value(args.lng, "lng", 0.0, type_conv=float)
+    photo = resolve_value(args.photo, "photo", "")
+    device = resolve_value(args.device, "device", "iPhone 12")
+    username = resolve_value(args.username, "username", "")
+    password = resolve_value(args.password, "password", "")
 
     print("=" * 60)
-    print(f"{' ' * 20}定位打卡{' ' * 20}")
+    print(f"{' ' * 26}定位打卡")
     print("=" * 60)
-
-    # 使用当前目录下的 cookies.txt
-    cookies_path = args.cookies or "cookies.txt"
 
     cookies = load_cookies(cookies_path)
     if not cookies or not validate_cookies(cookies):
         print("[!] Cookie 不存在或已过期，需要重新登录。")
-        username = os.environ.get("CHAOXING_USERNAME")
-        password = os.environ.get("CHAOXING_PASSWORD")
         if not username or not password:
+            if os.environ.get("GITHUB_ACTIONS") or os.environ.get("CI"):
+                print("[-] 错误: 检测到在 GitHub Actions 环境中运行，但未检测到账号或密码配置！")
+                print("    请在 config.json 中配置 username 和 password。")
+                send_bark_notification("❌ 签到失败", "GitHub Actions 缺少账号密码配置")
+                sys.exit(1)
             username = input("请输入手机号/用户名: ").strip()
             password = input("请输入密码: ").strip()
         login_session = login_chaoxing(username, password)
@@ -293,12 +416,13 @@ def main():
             cookies = load_cookies(cookies_path)
         else:
             print("[-] 登录失败，无法继续签到。")
+            send_bark_notification("❌ 签到失败", "登录失败，请检查账号密码")
             sys.exit(1)
 
     print(f"[+] 成功加载有效 Cookie。UID: {cookies.get('UID', '未知')}")
 
     # 动态获取 mobile 页面版本 v
-    mobile_v = fetch_mobile_version(args.host)
+    mobile_v = fetch_mobile_version(host)
 
     # 初始化会话
     session = requests.Session()
@@ -306,10 +430,10 @@ def main():
 
     # 1. 机构 Token 交换 (ermLogin)
     print("[*] 正在交换机构 Token (ermLogin)...")
-    login_url = f"https://{args.host}/pedestal/user/ermLogin"
+    login_url = f"https://{host}/pedestal/user/ermLogin"
     login_headers = {
         **MOBILE_HEADERS,
-        "Referer": f"https://{args.host}/mobile/?v={mobile_v}"
+        "Referer": f"https://{host}/mobile/?v={mobile_v}"
     }
 
     try:
@@ -317,51 +441,60 @@ def main():
         resp_data = resp.json()
         if not resp_data.get("success"):
             print(f"[-] Token 交换失败: {resp_data}")
+            send_bark_notification("❌ 签到失败",
+                                   f"Token 交换失败: {resp_data.get('msg', '未知错误')}")
             sys.exit(1)
 
         token = resp_data["data"]["token"]
         print(f"[+] 成功获取 Token: {token[:15]}...")
     except Exception as e:
         print(f"[-] Token 交换过程中出错: {e}")
+        send_bark_notification("❌ 签到失败", f"Token 交换异常: {e}")
         sys.exit(1)
 
     # 2. 更新会话，设置 Token 相关的请求头与 Cookie
     session.headers.update({"X-Token": token})
-    session.cookies.set("cx_qmx_token", token)
+    session.cookies["cx_qmx_token"] = token
 
-    # 3. 获取用户角色信息 (getInfox)
+    # 3. 获取 user 角色信息 (getInfox)
     print("[*] 正在获取学生角色信息 (getInfox)...")
-    info_url = f"https://{args.host}/pedestal/user/getInfox?id="
+    info_url = f"https://{host}/pedestal/user/getInfox?id="
     info_headers = {
         **MOBILE_HEADERS,
-        "Referer": f"https://{args.host}/mobile/?v={mobile_v}"
+        "Referer": f"https://{host}/mobile/?v={mobile_v}"
     }
     try:
         resp = session.get(info_url, headers=info_headers, timeout=15)
         resp_data = resp.json()
         if not resp_data.get("success"):
             print(f"[-] 获取角色信息失败: {resp_data}")
+            send_bark_notification("❌ 签到失败", "获取学生角色信息失败")
             sys.exit(1)
 
         current_role_id = resp_data["data"]["currentRoleId"]
         print(f"[+] 成功获取当前角色 ID: {current_role_id}")
-        session.cookies.set("cx_qmx_role", current_role_id)
+        session.cookies["cx_qmx_role"] = current_role_id
     except Exception as e:
         print(f"[-] 获取角色信息时出错: {e}")
+        send_bark_notification("❌ 签到失败", f"获取角色信息异常: {e}")
         sys.exit(1)
 
     # 4. 获取签到学生状态与批次元数据 (getStudentInfo)
     print("[*] 正在拉取签到批次与规则数据...")
-    metadata_url = f"https://{args.host}/housemaster/sg/roomCheckPunch/getStudentInfo?cqfs=1"
+    metadata_url = f"https://{host}/housemaster/sg/roomCheckPunch/getStudentInfo?cqfs=1"
     metadata_headers = {
         **MOBILE_HEADERS,
-        "Referer": f"https://{args.host}/mobile/?v={mobile_v}"
+        "Referer": f"https://{host}/mobile/?v={mobile_v}"
     }
     try:
         resp = session.get(metadata_url, headers=metadata_headers, timeout=15)
         resp_data = resp.json()
         if not resp_data.get("success"):
             print(f"[-] 获取签到元数据失败: {resp_data}")
+            if str(resp_data.get("code"))[:3] == "200":
+                send_bark_notification("", resp_data.get("message"))
+            else:
+                send_bark_notification("❌ 签到失败", "获取签到元数据失败")
             sys.exit(1)
 
         meta_data = resp_data.get("data", {})
@@ -370,9 +503,12 @@ def main():
 
         if not batch:
             print("[-] 当前没有处于活动状态的签到批次。")
+            msg = "当前没有活动状态的签到批次。"
             if meta_data.get("result") and meta_data.get("result", {}).get("jg"):
                 print(
                     f"[!] 提示: 今日已签到状态为: {meta_data['result']['jg']} (时间: {meta_data['result'].get('sj')})")
+                msg += f"\n今日已签到状态: {meta_data['result']['jg']} (时间: {meta_data['result'].get('sj')})"
+            send_bark_notification("🔔 签到已跳过", msg)
             sys.exit(0)
 
         print("[+] 发现进行中的签到批次:")
@@ -384,19 +520,20 @@ def main():
         print(f"    签到规则状态: {batch.get('status')}")
     except Exception as e:
         print(f"[-] 获取签到元数据时出错: {e}")
+        traceback.print_exc()
+        send_bark_notification("❌ 签到失败", f"获取签到元数据异常: {e}")
         sys.exit(1)
 
     # 5. 解析签到位置 (GPS 及详细地址)
-    target_lat = args.lat
-    target_lng = args.lng
-    target_address = args.address
+    target_lat = lat
+    target_lng = lng
+    target_address = address
 
     # 如果用户没有传入自定义位置，则从批次规则中解析允许的签到点
     if not target_lat or not target_lng or not target_address:
         print("[*] 正在从批次规则中解析位置要求...")
-        qdwz_str = batch.get("qdwz", "[]")
         try:
-            allowed_locations = json.loads(qdwz_str)
+            allowed_locations = json.loads(batch.get("qdwz", "[]"))
             if allowed_locations:
                 loc = allowed_locations[0]
                 print(f"[+] 找到允许的签到位置规则: {loc.get('name')}")
@@ -424,10 +561,9 @@ def main():
     if batch.get("status") == "1":
         print("[!] 规则提示: 此批次要求进行 照片 签到。")
         image_bytes = None
-        photo_name = ""
 
-        if args.photo and os.path.exists(args.photo):
-            photo_path = Path(args.photo)
+        if photo and os.path.exists(photo):
+            photo_path = Path(photo)
             photo_name = photo_path.name
             with open(photo_path, "rb") as f:
                 image_bytes = f.read()
@@ -461,6 +597,7 @@ def main():
             print(f"[+] 照片对象构建成功: objectid={object_id}")
         except Exception as e:
             print(f"[-] 上传照片失败: {e}")
+            send_bark_notification("❌ 签到失败", f"上传照片失败: {e}")
             sys.exit(1)
 
     # 7. 构建并加密签到打卡参数
@@ -479,8 +616,8 @@ def main():
         "tp": photo_obj,
         "dkwz": target_address
     }
-    if args.device:
-        punch_params["lysbmc"] = args.device
+    if device:
+        punch_params["lysbmc"] = device
 
     print("\n[*] 签到明文载荷:")
     print(json.dumps(punch_params, ensure_ascii=False, indent=2))
@@ -493,13 +630,13 @@ def main():
 
     # 8. 提交打卡请求
     print("\n[*] 正在提交打卡请求...")
-    clockin_url = f"https://{args.host}/housemaster/sg/roomCheckPunch/clockIn"
+    clockin_url = f"https://{host}/housemaster/sg/roomCheckPunch/clockIn"
 
     clockin_headers = {
         **MOBILE_HEADERS,
         "Content-Type": "application/json; charset=utf-8",
-        "Origin": f"https://{args.host}",
-        "Referer": f"https://{args.host}/mobile/?v={mobile_v}"
+        "Origin": f"https://{host}",
+        "Referer": f"https://{host}/mobile/?v={mobile_v}"
     }
 
     clockin_data = {
@@ -511,12 +648,28 @@ def main():
         print(f"[+] HTTP 响应状态码: {resp.status_code}")
         print("[+] 响应体内容:")
         print(resp.text)
+
+        # 解析返回结果
+        if resp.status_code == 200:
+            try:
+                resp_json = resp.json()
+                if resp_json.get("success") or resp_json.get("code") == 20000:
+                    msg = f"签到已提交！\n反馈: {resp_json.get('msg') or resp_json.get('message') or '成功'}"
+                    send_bark_notification("✅ 签到成功", msg)
+                else:
+                    msg = f"签到提交失败: {resp_json.get('msg') or resp_json.get('message') or resp.text}"
+                    send_bark_notification("❌ 签到失败", msg)
+            except Exception:
+                send_bark_notification("✅ 签到成功", f"HTTP {resp.status_code}\n打卡请求已发出")
+        else:
+            send_bark_notification("❌ 签到失败", f"HTTP {resp.status_code}\n{resp.text[:100]}")
     except Exception as e:
         print(f"[-] 提交打卡请求时发生错误: {e}")
+        send_bark_notification("❌ 签到失败", f"打卡提交异常: {e}")
         sys.exit(1)
 
     print("=" * 60)
-    print(f"{' ' * 20}打卡流程执行完毕{' ' * 20}")
+    print(f"{' ' * 22}打卡流程执行完毕")
     print("=" * 60)
 
 
