@@ -10,8 +10,10 @@ import io
 import json
 import os
 import platform
+import random
 import re
 import sys
+import time
 import traceback
 from pathlib import Path
 
@@ -423,8 +425,36 @@ def send_bark_notification(status: str, content: str = ''):
             logger.error(f"使用设备 Token 注册推送失败: {e}")
 
 
+def auto_git_push(cookies_path: str):
+    """
+    打卡成功后，自动提交 Cookies 和 Logs 并推送至 Git 仓库。
+    使用临时配置区分手动提交与自动提交，且不污染本地 Git 配置。
+    """
+    logger.info("检测到开启了 git-push，正在自动提交 Cookie 和日志并推送...")
+    try:
+        import subprocess
+        subprocess.run(["git", "add", cookies_path], check=True)
+        if os.path.isdir("logs"):
+            subprocess.run(["git", "add", "logs"], check=True)
+
+        diff_res = subprocess.run(["git", "diff", "--cached", "--quiet"])
+        if diff_res.returncode != 0:
+            logger.info("检测到 cookies.txt 或 logs/ 有更新，准备提交并推送...")
+            subprocess.run([
+                "git",
+                "-c", "user.name=Zropk (Auto)",
+                "commit",
+                "-m", "chore: auto-update cookies and logs [skip ci]"
+            ], check=True)
+            subprocess.run(["git", "push"], check=True)
+            logger.success("Git 提交和推送成功。")
+        else:
+            logger.info("未检测到 cookies.txt 或 logs/ 有任何实质更新，跳过 Git 提交。")
+    except Exception as git_err:
+        logger.error(f"Git 提交与推送失败: {git_err}")
+
+
 def main():
-    start_time = datetime.datetime.now()
     parser = argparse.ArgumentParser(description="签到请求脚本。")
     parser.add_argument("--cookies", type=str, default=None, help="Cookie 文件路径")
     parser.add_argument("--host", type=str, default=None, help="签到域名")
@@ -437,6 +467,9 @@ def main():
     parser.add_argument("--bark-device-token", type=str, default=None, help="Bark 设备 Token (可选)")
     parser.add_argument("--username", type=str, default=None, help="用户名/手机号 (可选)")
     parser.add_argument("--password", type=str, default=None, help="密码 (可选)")
+    parser.add_argument("--git-push", action="store_true", default=None,
+                        help="打卡成功后是否自动提交更新的 cookie 并推送到 Git 仓库")
+    parser.add_argument("--delay", type=int, default=None, help="最大随机延时秒数 (0 或不设表示不延时)")
 
     args = parser.parse_args()
     global _args_global, _config_global
@@ -474,9 +507,20 @@ def main():
     username = resolve_value(args.username, "username", "")
     password = resolve_value(args.password, "password", "")
 
+    # 结合命令行参数、环境变量 GIT_PUSH 以及配置文件中 git-push 的值
+    git_push = args.git_push or (os.environ.get("GIT_PUSH") == "true") or _config_global.get("git-push", False)
+
+    # 结合命令行参数、环境变量 DELAY 以及配置文件中 delay 的值
+    delay = resolve_value(args.delay, "delay", 0, type_conv=int)
+
     logger.info("=" * 60)
     logger.info(f"{' ' * 26}定位打卡")
     logger.info("=" * 60)
+
+    if delay > 0:
+        sleep_time = random.randint(1, delay)
+        logger.info(f"配置了随机延时，正在随机延时 {sleep_time} 秒 (范围: 1 - {delay} 秒)...")
+        time.sleep(sleep_time)
 
     cookies = load_cookies(cookies_path)
     if not cookies or not validate_cookies(cookies):
@@ -746,12 +790,24 @@ def main():
         send_bark_notification("error", f"打卡提交异常: {e}")
         sys.exit(0)
 
-    logger.info("=" * 60)
-    logger.info(f"{' ' * 22}打卡流程执行完毕")
-    elapsed_time = datetime.datetime.now() - start_time
-    logger.info(f"本次运行共耗时: {elapsed_time}")
-    logger.info("=" * 60)
-
 
 if __name__ == "__main__":
-    main()
+    start_time = datetime.datetime.now()
+    try:
+        main()
+    finally:
+        logger.info("=" * 60)
+        logger.info(f"{' ' * 22}打卡流程执行完毕")
+        elapsed_time = datetime.datetime.now() - start_time
+        logger.info(f"本次运行共耗时: {elapsed_time}")
+        logger.info("=" * 60)
+        try:
+            if '_args_global' in globals() and _args_global is not None:
+                is_github_actions = os.environ.get("GITHUB_ACTIONS") == "true"
+                git_push = _args_global.git_push or (os.environ.get("GIT_PUSH") == "true") or _config_global.get(
+                    "git-push", False)
+                if git_push and not is_github_actions:
+                    cookies_path = resolve_value(_args_global.cookies, "cookies", "cookies.txt")
+                    auto_git_push(cookies_path)
+        except Exception as e:
+            pass
