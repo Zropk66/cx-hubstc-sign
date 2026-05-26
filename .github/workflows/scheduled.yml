@@ -2,7 +2,8 @@ name: Test Schedule Trigger
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/10 * * * *'
+      timezone: "Asia/Shanghai"
   workflow_dispatch:
 
 jobs:
