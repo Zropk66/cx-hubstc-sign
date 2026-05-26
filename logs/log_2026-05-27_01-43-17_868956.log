@@ -35,3 +35,17 @@
 2026-05-27 01:43:23.091 | DEBUG   | __main__:log_http_details:87 - =============================
 2026-05-27 01:43:23.092 | INFO    | __main__:main:627 - 当前没有处于活动状态的签到批次。
 2026-05-27 01:43:23.092 | INFO    | __main__:main:630 - 提示: 今日已签到状态为: 1 (时间: 2026-05-26 21:59:43)
+2026-05-27 01:43:26.019 | DEBUG   | __main__:log_http_details:75 - === HTTP Request Details ===
+2026-05-27 01:43:26.019 | DEBUG   | __main__:log_http_details:76 - Method: POST | URL: https://api.day.app/push
+2026-05-27 01:43:26.019 | DEBUG   | __main__:log_http_details:80 - Request Body: {'device_key': '4BQcuEEXvfQvtDQiiwXEGU', 'title': '寝室定位打卡', 'body': '🔔 当前没有活动状态的签到批次。\n今日已签到状态: 1 (时间: 2026-05-26 21:59:43)', 'group': '超星自动签到'}
+2026-05-27 01:43:26.019 | DEBUG   | __main__:log_http_details:83 - === HTTP Response Details ===
+2026-05-27 01:43:26.019 | DEBUG   | __main__:log_http_details:84 - Status Code: 200
+2026-05-27 01:43:26.019 | DEBUG   | __main__:log_http_details:85 - Response Headers: {'Server': 'nginx/1.18.0 (Ubuntu)', 'Date': 'Tue, 26 May 2026 17:43:27 GMT', 'Content-Type': 'application/json', 'Content-Length': '55', 'Connection': 'keep-alive', 'Access-Control-Allow-Origin': '*'}
+2026-05-27 01:43:26.019 | DEBUG   | __main__:log_http_details:86 - Response Body: {"code":200,"message":"success","timestamp":1779817407}
+2026-05-27 01:43:26.019 | DEBUG   | __main__:log_http_details:87 - =============================
+2026-05-27 01:43:26.020 | SUCCESS | __main__:send_bark_notification:403 - Bark 消息推送成功
+2026-05-27 01:43:26.020 | INFO    | __main__:<module>:801 - ============================================================
+2026-05-27 01:43:26.020 | INFO    | __main__:<module>:802 -                       打卡流程执行完毕
+2026-05-27 01:43:26.020 | INFO    | __main__:<module>:804 - 本次运行共耗时: 0:00:08.150434
+2026-05-27 01:43:26.020 | INFO    | __main__:<module>:805 - ============================================================
+2026-05-27 01:43:26.020 | INFO    | __main__:auto_git_push:433 - 检测到开启了 git-push，正在自动提交 Cookie 和日志并推送...
