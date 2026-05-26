@@ -2,9 +2,9 @@ name: ChaoXing Auto Sign
 
 on:
   schedule:
-    # 每天北京时间 21:31 触发
-    # 21:31 Beijing Time = 13:31 UTC
-    - cron: '31 13 * * *'
+    # 每天北京时间 21:30 运行
+    - cron: '50 22 * * *'
+      timezone: 'Asia/Shanghai'
   workflow_dispatch:
     inputs:
       custom_args:
