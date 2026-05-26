@@ -1,0 +1,53 @@
+2026-05-27 01:39:52.522 | DEBUG   | __main__:main:478 - === Running Environment Metadata ===
+2026-05-27 01:39:52.628 | DEBUG   | __main__:main:479 - OS: Windows 11 (win32)
+2026-05-27 01:39:52.629 | DEBUG   | __main__:main:480 - Python Version: 3.13.7
+2026-05-27 01:39:52.629 | DEBUG   | __main__:main:482 - Is GitHub Actions: False
+2026-05-27 01:39:52.629 | DEBUG   | __main__:main:487 - =====================================
+2026-05-27 01:39:52.629 | SUCCESS | __main__:main:496 - 成功读取配置文件: D:\Zropk\Documents\PycharmProjects\cx_hubstc_sign\config.json
+2026-05-27 01:39:52.630 | INFO    | __main__:main:516 - ============================================================
+2026-05-27 01:39:52.630 | INFO    | __main__:main:517 -                           定位打卡
+2026-05-27 01:39:52.630 | INFO    | __main__:main:518 - ============================================================
+2026-05-27 01:39:52.630 | INFO    | __main__:main:522 - 配置了随机延时，正在随机延时 1 秒 (范围: 1 - 1 秒)...
+2026-05-27 01:39:53.631 | DEBUG   | __main__:validate_cookies:185 - 开始校验 Cookie...
+2026-05-27 01:39:54.560 | SUCCESS | __main__:validate_cookies:210 - Cookie 校验成功: 用户处于登录状态
+2026-05-27 01:39:54.560 | SUCCESS | __main__:main:545 - 成功加载有效 Cookie。UID: 410430135
+2026-05-27 01:39:56.513 | INFO    | __main__:fetch_mobile_version:163 - 动态获取到 mobile 页面版本: dfdec28a5
+2026-05-27 01:39:56.516 | INFO    | __main__:main:552 - 正在交换机构 Token (ermLogin)...
+2026-05-27 01:39:57.437 | DEBUG   | __main__:log_http_details:75 - === HTTP Request Details ===
+2026-05-27 01:39:57.437 | DEBUG   | __main__:log_http_details:76 - Method: GET | URL: https://hbkjzy.qmx.chaoxing.com/pedestal/user/ermLogin
+2026-05-27 01:39:57.437 | DEBUG   | __main__:log_http_details:78 - Request Headers: {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 (schild:c69a8a0f7107e385cfaa3a45194f99ef) (device:iPhone13,2) Language/zh-Hant com.ssreader.ChaoXingStudy/ChaoXingStudy_3_6.7.3_ios_phone_202602111700_314 (@Kalimdor)_14898949611323310882', 'Accept': 'application/json, text/plain, */*', 'Accept-Language': 'zh-CN,zh-Hans;q=0.9', 'Accept-Encoding': 'gzip, deflate, br', 'Connection': 'keep-alive', 'Referer': 'https://hbkjzy.qmx.chaoxing.com/mobile/?v=dfdec28a5'}
+2026-05-27 01:39:57.437 | DEBUG   | __main__:log_http_details:83 - === HTTP Response Details ===
+2026-05-27 01:39:57.437 | DEBUG   | __main__:log_http_details:84 - Status Code: 200
+2026-05-27 01:39:57.437 | DEBUG   | __main__:log_http_details:85 - Response Headers: {'Date': 'Tue, 26 May 2026 17:39:58 GMT', 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked', 'Connection': 'keep-alive', 'Vary': 'Origin, Access-Control-Request-Method, Access-Control-Request-Headers', 'X-Content-Type-Options': 'nosniff', 'X-XSS-Protection': '1; mode=block', 'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0'}
+2026-05-27 01:39:57.437 | DEBUG   | __main__:log_http_details:86 - Response Body: {"success":true,"code":20000,"message":"成功","data":{"token":"eyJhbGciOiJIUzUxMiJ9.eyJsb2dpbl91c2VyX2tleSI6IjY4NzhiNjAyLTJjY2MtNGI2YS1iM2UwLTlhYmI2MzA0OTUyMyJ9.kbC4MvIgkp7PqBK6ZpncHP24ppT_z1zvvggtkKx3dnMCmrZLjZFhHly1tlpoSz-s8_H9Sz7zDX4BRlxHt6Q-Sg"}}
+2026-05-27 01:39:57.437 | DEBUG   | __main__:log_http_details:87 - =============================
+2026-05-27 01:39:57.438 | SUCCESS | __main__:main:570 - 成功获取 Token: eyJhbGciOiJIUzU...
+2026-05-27 01:39:57.438 | INFO    | __main__:main:579 - 正在获取学生角色信息 (getInfox)...
+2026-05-27 01:39:57.488 | SUCCESS | __main__:main:594 - 成功获取当前角色 ID: 4204d3304f78f805c890fa1b3eb10aa9
+2026-05-27 01:39:57.488 | INFO    | __main__:main:601 - 正在拉取签到批次与规则数据...
+2026-05-27 01:39:57.530 | DEBUG   | __main__:log_http_details:75 - === HTTP Request Details ===
+2026-05-27 01:39:57.530 | DEBUG   | __main__:log_http_details:76 - Method: GET | URL: https://hbkjzy.qmx.chaoxing.com/housemaster/sg/roomCheckPunch/getStudentInfo?cqfs=1
+2026-05-27 01:39:57.530 | DEBUG   | __main__:log_http_details:78 - Request Headers: {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 (schild:c69a8a0f7107e385cfaa3a45194f99ef) (device:iPhone13,2) Language/zh-Hant com.ssreader.ChaoXingStudy/ChaoXingStudy_3_6.7.3_ios_phone_202602111700_314 (@Kalimdor)_14898949611323310882', 'Accept': 'application/json, text/plain, */*', 'Accept-Language': 'zh-CN,zh-Hans;q=0.9', 'Accept-Encoding': 'gzip, deflate, br', 'Connection': 'keep-alive', 'Referer': 'https://hbkjzy.qmx.chaoxing.com/mobile/?v=dfdec28a5'}
+2026-05-27 01:39:57.531 | DEBUG   | __main__:log_http_details:83 - === HTTP Response Details ===
+2026-05-27 01:39:57.531 | DEBUG   | __main__:log_http_details:84 - Status Code: 200
+2026-05-27 01:39:57.531 | DEBUG   | __main__:log_http_details:85 - Response Headers: {'Date': 'Tue, 26 May 2026 17:39:58 GMT', 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked', 'Connection': 'keep-alive', 'Vary': 'Origin, Access-Control-Request-Method, Access-Control-Request-Headers', 'X-Content-Type-Options': 'nosniff', 'X-XSS-Protection': '1; mode=block', 'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0', 'Set-Cookie': 'route=2a61e665498e6233d91aea047d92dc42; Path=/'}
+2026-05-27 01:39:57.531 | DEBUG   | __main__:log_http_details:86 - Response Body: {"success":true,"code":20000,"message":"成功","data":{"result":{"cqrq":"2026-05-26","sj":"2026-05-26 21:59:43","pcId":"6d9c8bdc3b3e418db60ad465946b2ff0","jg":"1"}}}
+2026-05-27 01:39:57.531 | DEBUG   | __main__:log_http_details:87 - =============================
+2026-05-27 01:39:57.531 | INFO    | __main__:main:625 - 当前没有处于活动状态的签到批次。
+2026-05-27 01:39:57.531 | INFO    | __main__:main:628 - 提示: 今日已签到状态为: 1 (时间: 2026-05-26 21:59:43)
+2026-05-27 01:39:58.640 | DEBUG   | __main__:log_http_details:75 - === HTTP Request Details ===
+2026-05-27 01:39:58.640 | DEBUG   | __main__:log_http_details:76 - Method: POST | URL: https://api.day.app/push
+2026-05-27 01:39:58.640 | DEBUG   | __main__:log_http_details:80 - Request Body: {'device_key': '4BQcuEEXvfQvtDQiiwXEGU', 'title': '寝室定位打卡', 'body': '🔔 当前没有活动状态的签到批次。\n今日已签到状态: 1 (时间: 2026-05-26 21:59:43)', 'group': '超星自动签到'}
+2026-05-27 01:39:58.641 | DEBUG   | __main__:log_http_details:83 - === HTTP Response Details ===
+2026-05-27 01:39:58.641 | DEBUG   | __main__:log_http_details:84 - Status Code: 200
+2026-05-27 01:39:58.641 | DEBUG   | __main__:log_http_details:85 - Response Headers: {'Server': 'nginx/1.18.0 (Ubuntu)', 'Date': 'Tue, 26 May 2026 17:39:59 GMT', 'Content-Type': 'application/json', 'Content-Length': '55', 'Connection': 'keep-alive', 'Access-Control-Allow-Origin': '*'}
+2026-05-27 01:39:58.641 | DEBUG   | __main__:log_http_details:86 - Response Body: {"code":200,"message":"success","timestamp":1779817199}
+2026-05-27 01:39:58.641 | DEBUG   | __main__:log_http_details:87 - =============================
+2026-05-27 01:39:58.641 | SUCCESS | __main__:send_bark_notification:403 - Bark 消息推送成功
+2026-05-27 01:39:58.641 | INFO    | __main__:<module>:799 - ============================================================
+2026-05-27 01:39:58.641 | INFO    | __main__:<module>:800 -                       打卡流程执行完毕
+2026-05-27 01:39:58.641 | INFO    | __main__:<module>:802 - 本次运行共耗时: 0:00:06.119869
+2026-05-27 01:39:58.641 | INFO    | __main__:<module>:803 - ============================================================
+2026-05-27 01:39:58.642 | INFO    | __main__:auto_git_push:433 - 检测到开启了 git-push，正在自动提交 Cookie 和日志并推送...
+2026-05-27 01:39:58.860 | INFO    | __main__:auto_git_push:442 - 检测到 cookies.txt 或 logs/ 有更新，准备提交并推送...
+2026-05-27 01:40:01.975 | SUCCESS | __main__:auto_git_push:450 - Git 提交和推送成功。
