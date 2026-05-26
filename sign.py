@@ -431,6 +431,7 @@ def auto_git_push(cookies_path: str):
     使用临时配置区分手动提交与自动提交，且不污染本地 Git 配置。
     """
     logger.info("检测到开启了 git-push，正在自动提交 Cookie 和日志并推送...")
+    logger.remove()
     try:
         import subprocess
         subprocess.run(["git", "add", cookies_path], check=True)
@@ -439,7 +440,7 @@ def auto_git_push(cookies_path: str):
 
         diff_res = subprocess.run(["git", "diff", "--cached", "--quiet"])
         if diff_res.returncode != 0:
-            logger.info("检测到 cookies.txt 或 logs/ 有更新，准备提交并推送...")
+            print("检测到 cookies.txt 或 logs/ 有更新，准备提交并推送...")
             subprocess.run([
                 "git",
                 "-c", "user.name=Zropk (Auto)",
@@ -447,11 +448,11 @@ def auto_git_push(cookies_path: str):
                 "-m", "chore: auto-update cookies and logs [skip ci]"
             ], check=True)
             subprocess.run(["git", "push"], check=True)
-            logger.success("Git 提交和推送成功。")
+            print("Git 提交和推送成功。")
         else:
-            logger.info("未检测到 cookies.txt 或 logs/ 有任何实质更新，跳过 Git 提交。")
+            print("未检测到 cookies.txt 或 logs/ 有任何实质更新，跳过 Git 提交。")
     except Exception as git_err:
-        logger.error(f"Git 提交与推送失败: {git_err}")
+        print(f"Git 提交与推送失败: {git_err}")
 
 
 def main():
