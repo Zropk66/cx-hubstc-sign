@@ -65,3 +65,75 @@ def test_run_sign_in_log_sink_lifecycle(mock_validate_cookies):
         # Clean up
         shutil.rmtree(temp_log_dir)
 
+
+import json
+from unittest.mock import patch, MagicMock, call
+import sign
+
+def test_main_runs_multiple_accounts(tmp_path):
+    configs_dir = tmp_path / "configs"
+    configs_dir.mkdir()
+
+    user1_dir = configs_dir / "user1"
+    user1_dir.mkdir()
+    user1_cfg = {"username": "user1", "host": "host1"}
+    with open(user1_dir / "config.json", "w") as f:
+        json.dump(user1_cfg, f)
+
+    user2_dir = configs_dir / "user2"
+    user2_dir.mkdir()
+    user2_cfg = {"username": "user2", "host": "host2"}
+    with open(user2_dir / "config.json", "w") as f:
+        json.dump(user2_cfg, f)
+
+    with patch("sign.run_sign_in") as mock_run_sign_in, \
+         patch("sign.has_cli_overrides") as mock_cli_overrides, \
+         patch("os.path.exists") as mock_exists, \
+         patch("os.getcwd") as mock_getcwd, \
+         patch("pathlib.Path.is_dir") as mock_is_dir, \
+         patch("pathlib.Path.iterdir") as mock_iterdir, \
+         patch("time.sleep") as mock_sleep:
+
+        mock_cli_overrides.return_value = False
+
+        def exists_side_effect(path):
+            if "config.json" in str(path) and "configs" not in str(path):
+                return True
+            return False
+        mock_exists.side_effect = exists_side_effect
+        mock_getcwd.return_value = str(tmp_path)
+
+        mock_is_dir.return_value = True
+        mock_iterdir.return_value = [user1_dir, user2_dir]
+
+        # Mock file opens inside main() for config reading
+        with patch("builtins.open", create=True) as mock_open:
+            mock_file_root = MagicMock()
+            mock_file_root.read.return_value = '{"username": "main_user"}'
+            mock_file_u1 = MagicMock()
+            mock_file_u1.read.return_value = json.dumps(user1_cfg)
+            mock_file_u2 = MagicMock()
+            mock_file_u2.read.return_value = json.dumps(user2_cfg)
+
+            mock_open.side_effect = lambda path, *args, **kwargs: {
+                str(tmp_path / "config.json"): mock_file_root,
+                str(user1_dir / "config.json"): mock_file_u1,
+                str(user2_dir / "config.json"): mock_file_u2,
+            }.get(str(path), MagicMock())
+
+            mock_args = MagicMock()
+            mock_args.cookies = None
+
+            with patch("argparse.ArgumentParser.parse_args", return_value=mock_args):
+                sign.main()
+
+                assert mock_run_sign_in.call_count == 3
+                mock_run_sign_in.assert_has_calls([
+                    call({"username": "main_user"}, "cookies.txt", "logs"),
+                    call(user1_cfg, str(user1_dir / "cookies.txt"), str(user1_dir / "logs")),
+                    call(user2_cfg, str(user2_dir / "cookies.txt"), str(user2_dir / "logs"))
+                ], any_order=False)
+
+                assert mock_sleep.call_count == 2
+
+

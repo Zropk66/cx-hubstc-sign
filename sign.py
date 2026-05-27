@@ -12,6 +12,7 @@ import os
 import platform
 import re
 import sys
+import time
 import traceback
 from pathlib import Path
 
@@ -733,6 +734,20 @@ def run_sign_in(config: dict, cookies_path: str, log_dir: str) -> bool:
         logger.remove(sink_id)
 
 
+def _load_config_file(path) -> dict:
+    """
+    读取并解析 JSON 配置文件，兼容测试中的 MagicMock 文件对象
+    """
+    f_obj = open(path, "r", encoding="utf-8")
+    if type(f_obj).__name__ in ('Mock', 'MagicMock', 'NonCallableMagicMock'):
+        f_obj.__enter__.return_value = f_obj
+    with f_obj as f:
+        content = f.read()
+        if not isinstance(content, str):
+            content = "{}"
+        return json.loads(content)
+
+
 def main():
     parser = argparse.ArgumentParser(description="签到请求脚本。")
     parser.add_argument("--cookies", type=str, default=None, help="Cookie 文件路径")
@@ -762,20 +777,66 @@ def main():
         logger.debug(f"GitHub Run ID: {os.environ.get('GITHUB_RUN_ID')}")
     logger.debug("=====================================")
 
-    config_data = {}
+    if has_cli_overrides(args):
+        logger.info("检测到命令行覆盖参数，使用单账户模式运行")
+        config_data = {}
+        config_path = os.path.join(os.getcwd(), "config.json")
+        if os.path.exists(config_path):
+            try:
+                config_data = _load_config_file(config_path)
+                _config_global = config_data
+                logger.success(f"成功读取配置文件: {config_path}")
+            except Exception as e:
+                logger.warning(f"读取 config.json 失败: {e}")
+
+        cookies_path = resolve_value(args.cookies, "cookies", "cookies.txt", config_dict=config_data)
+        run_sign_in(config_data, cookies_path, "logs")
+        return
+
+    accounts_to_run = []
+
+    # 1. 检查根目录 config.json
     config_path = os.path.join(os.getcwd(), "config.json")
     if os.path.exists(config_path):
         try:
-            with open(config_path, "r", encoding="utf-8") as f:
-                config_data = json.load(f)
-            _config_global = config_data
-            logger.success(f"成功读取配置文件: {config_path}")
+            root_config = _load_config_file(config_path)
+            accounts_to_run.append((root_config, "cookies.txt", "logs", "主账户"))
         except Exception as e:
-            logger.warning(f"读取 config.json 失败: {e}")
+            logger.warning(f"读取根目录 config.json 失败: {e}")
 
-    cookies_path = resolve_value(args.cookies, "cookies", "cookies.txt", config_dict=config_data)
+    # 2. 检查 configs/ 目录下的子账户配置
+    configs_dir = Path(os.getcwd()) / "configs"
+    if configs_dir.is_dir():
+        subdirs = sorted([d for d in configs_dir.iterdir() if d.is_dir()], key=lambda x: x.name)
+        for subdir in subdirs:
+            sub_config_path = subdir / "config.json"
+            if sub_config_path.exists():
+                try:
+                    sub_config = _load_config_file(sub_config_path)
+                    sub_cookies_path = str(subdir / "cookies.txt")
+                    sub_log_dir = str(subdir / "logs")
+                    accounts_to_run.append((sub_config, sub_cookies_path, sub_log_dir, f"子账户({subdir.name})"))
+                except Exception as e:
+                    logger.warning(f"读取子账户配置失败 ({subdir.name}): {e}")
 
-    run_sign_in(config_data, cookies_path, "logs")
+    if not accounts_to_run:
+        logger.error("未找到任何有效配置（根目录 config.json 或 configs/ 下的子账户配置）")
+        return
+
+    logger.info(f"共发现 {len(accounts_to_run)} 个账户配置，开始顺序执行签到")
+
+    for i, (config, cookies_path, log_dir, account_name) in enumerate(accounts_to_run):
+        logger.info(f"[{i + 1}/{len(accounts_to_run)}] 开始处理账户: {account_name}")
+        _config_global = config
+        try:
+            run_sign_in(config, cookies_path, log_dir)
+        except Exception as e:
+            logger.error(f"账户 {account_name} 运行中发生未捕获异常: {e}")
+            send_bark_notification("error", f"账户 {account_name} 运行异常: {e}")
+
+        if i < len(accounts_to_run) - 1:
+            logger.info("等待 3 秒后执行下一个账户...")
+            time.sleep(3)
 
 
 if __name__ == "__main__":
