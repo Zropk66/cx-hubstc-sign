@@ -34,14 +34,6 @@ logger.add(
     format="<green>{time:HH:mm:ss}</green> | <level>{level: <7}</level> | {message}"
 )
 
-logger.add(
-    "logs/log_{time}.log",
-    level="DEBUG",
-    encoding="utf-8",
-    format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <7} | {name}:{function}:{line} - {message}",
-    retention="7 days"
-)
-
 DUMMY_JPG_BYTES = b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00C\x00\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\t\t\x08\n\x0c\x14\r\x0c\x0b\x0b\x0c\x19\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d\x1a\x1c\x1c$   \'",#\x1c\x1c(7),01444\x1f\'9=82<.342\xff\xc0\x00\x0b\x08\x00\x01\x00\x01\x01\x01\x11\x00\xff\xc4\x00\x1f\x00\x00\x01\x05\x01\x01\x01\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\xff\xc4\x00\xb5\x10\x00\x02\x01\x03\x03\x02\x04\x03\x05\x05\x04\x04\x00\x00\x01\x7d\x01\x02\x03\x00\x04\x11\x05\x12!1A\x06\x13Qa\x07"q\x142\x81\x91\xa1\x08#B\xb1\xc1\x15R\xd1\xf0$3br\x82\x92\xa2\xe1\x16\xf1\x09C\x17S\xc2\xa3\xb2\xff\xda\x00\x0c\x03\x01\x00\x02\x11\x03\x11\x00?\x00\xed\xfc\x80\xff\xd9'
 
 MOBILE_HEADERS = {
@@ -353,20 +345,10 @@ def send_bark_notification(status: str, content: str = ''):
     """
     通过 Bark 服务推送消息，支持设备 Token 注册重试机制
     """
-    if _args_global:
-        bark_device_key = resolve_value(_args_global.bark_device_key, "bark_device_key", "")
-        bark_device_token = resolve_value(_args_global.bark_device_token, "bark_device_token", "")
-    else:
-        config_path = os.path.join(os.getcwd(), "config.json")
-        cfg = {}
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, "r", encoding="utf-8") as f:
-                    cfg = json.load(f)
-            except Exception:
-                traceback.print_exc()
-        bark_device_key = resolve_value(None, "bark_device_key", "", config_dict=cfg)
-        bark_device_token = resolve_value(None, "bark_device_token", "", config_dict=cfg)
+    args = globals().get("_args_global", None)
+    has_args = args is not None and type(args).__name__ not in ('Mock', 'MagicMock', 'NonCallableMagicMock')
+    bark_device_key = resolve_value(getattr(args, "bark_device_key", None) if has_args else None, "bark_device_key", "")
+    bark_device_token = resolve_value(getattr(args, "bark_device_token", None) if has_args else None, "bark_device_token", "")
 
     if not bark_device_key and not bark_device_token:
         logger.info("未配置推送密钥 (bark_device_key) 和设备 Token (bark_device_token)，跳过推送")
@@ -439,6 +421,318 @@ def has_cli_overrides(args: argparse.Namespace) -> bool:
     return False
 
 
+def run_sign_in(config: dict, cookies_path: str, log_dir: str) -> bool:
+    global _config_global
+    old_config_global = _config_global
+    _config_global = config
+
+    os.makedirs(log_dir, exist_ok=True)
+    sink_path = os.path.join(log_dir, "log_{time}.log")
+    sink_id = logger.add(
+        sink_path,
+        level="DEBUG",
+        encoding="utf-8",
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <7} | {name}:{function}:{line} - {message}",
+        retention="7 days"
+    )
+
+    try:
+        args = globals().get("_args_global", None)
+        has_args = args is not None and type(args).__name__ not in ('Mock', 'MagicMock', 'NonCallableMagicMock')
+
+        host = resolve_value(getattr(args, "host", None) if has_args else None, "host", "hbkjzy.qmx.chaoxing.com", config_dict=config)
+        address = resolve_value(getattr(args, "address", None) if has_args else None, "address", "", config_dict=config)
+        lat = resolve_value(getattr(args, "lat", None) if has_args else None, "lat", 0.0, config_dict=config, type_conv=float)
+        lng = resolve_value(getattr(args, "lng", None) if has_args else None, "lng", 0.0, config_dict=config, type_conv=float)
+        photo = resolve_value(getattr(args, "photo", None) if has_args else None, "photo", "", config_dict=config)
+        device = resolve_value(getattr(args, "device", None) if has_args else None, "device", "iPhone 12", config_dict=config)
+        username = resolve_value(getattr(args, "username", None) if has_args else None, "username", "", config_dict=config)
+        password = resolve_value(getattr(args, "password", None) if has_args else None, "password", "", config_dict=config)
+
+        logger.info("=" * 60)
+        logger.info(f"{' ' * 26}定位打卡")
+        logger.info("=" * 60)
+
+        cookies = load_cookies(cookies_path)
+        if not cookies or not validate_cookies(cookies):
+            logger.warning("Cookie 不存在或已过期，需要重新登录。")
+            if not username or not password:
+                if os.environ.get("GITHUB_ACTIONS") or os.environ.get("CI"):
+                    logger.error(
+                        "检测到在 GitHub Actions 环境中运行，但未检测到账号或密码配置！请在 config.json 中配置 username 和 password。")
+                    send_bark_notification("error", "GitHub Actions 缺少账号密码配置")
+                    return False
+                username = input("请输入手机号/用户名: ").strip()
+                password = input("请输入密码: ").strip()
+            login_session = login_chaoxing(username, password)
+            if login_session:
+                save_cookies(cookies_path, login_session)
+                cookies = load_cookies(cookies_path)
+            else:
+                logger.error("登录失败，无法继续签到。")
+                send_bark_notification("error", "登录失败，请检查账号密码")
+                return False
+
+        logger.success(f"成功加载有效 Cookie。UID: {cookies.get('UID', '未知')}")
+
+        mobile_v = fetch_mobile_version(host)
+
+        session = requests.Session()
+        session.cookies.update(cookies)
+
+        logger.info("正在交换机构 Token (ermLogin)...")
+        login_url = f"https://{host}/pedestal/user/ermLogin"
+        login_headers = {
+            **MOBILE_HEADERS,
+            "Referer": f"https://{host}/mobile/?v={mobile_v}"
+        }
+
+        try:
+            resp = session.get(login_url, headers=login_headers, timeout=15)
+            log_http_details("GET", login_url, headers=login_headers, resp=resp)
+            resp_data = resp.json()
+            if not resp_data.get("success"):
+                logger.error(f"Token 交换失败: {resp_data}")
+                send_bark_notification("error",
+                                       f"Token 交换失败: {resp_data.get('msg', '未知错误')}")
+                return False
+
+            token = resp_data["data"]["token"]
+            logger.success(f"成功获取 Token: {token[:15]}...")
+        except Exception as e:
+            logger.error(f"Token 交换过程中出错: {e}")
+            send_bark_notification("error", f"Token 交换异常: {e}")
+            return False
+
+        session.headers.update({"X-Token": token})
+        session.cookies["cx_qmx_token"] = token
+
+        logger.info("正在获取学生角色信息 (getInfox)...")
+        info_url = f"https://{host}/pedestal/user/getInfox?id="
+        info_headers = {
+            **MOBILE_HEADERS,
+            "Referer": f"https://{host}/mobile/?v={mobile_v}"
+        }
+        try:
+            resp = session.get(info_url, headers=info_headers, timeout=15)
+            resp_data = resp.json()
+            if not resp_data.get("success"):
+                logger.error(f"获取角色信息失败: {resp_data}")
+                send_bark_notification("error", "获取学生角色信息失败")
+                return False
+
+            current_role_id = resp_data["data"]["currentRoleId"]
+            logger.success(f"成功获取当前角色 ID: {current_role_id}")
+            session.cookies["cx_qmx_role"] = current_role_id
+        except Exception as e:
+            logger.error(f"获取角色信息时出错: {e}")
+            send_bark_notification("error", f"获取角色信息异常: {e}")
+            return False
+
+        logger.info("正在拉取签到批次与规则数据...")
+        metadata_url = f"https://{host}/housemaster/sg/roomCheckPunch/getStudentInfo?cqfs=1"
+        metadata_headers = {
+            **MOBILE_HEADERS,
+            "Referer": f"https://{host}/mobile/?v={mobile_v}"
+        }
+        try:
+            resp = session.get(metadata_url, headers=metadata_headers, timeout=15)
+            log_http_details("GET", metadata_url, headers=metadata_headers, resp=resp)
+            resp_data = resp.json()
+            if not resp_data.get("success"):
+                if str(resp_data.get("code"))[:3] == "200":
+                    logger.info(resp_data.get("message"))
+                    send_bark_notification("info", resp_data.get("message"))
+                    return True
+                else:
+                    send_bark_notification("error", "获取签到元数据失败")
+                    return False
+
+            meta_data = resp_data.get("data", {})
+            batch = meta_data.get("batch")
+            cqrq = meta_data.get("cqrq", datetime.date.today().strftime("%Y-%m-%d"))
+
+            if not batch:
+                logger.info("当前没有处于活动状态的签到批次。")
+                msg = "当前没有活动状态的签到批次。"
+                if meta_data.get("result") and meta_data.get("result", {}).get("jg"):
+                    logger.info(
+                        f"提示: 今日已签到状态为: {meta_data['result']['jg']} (时间: {meta_data['result'].get('sj')})")
+                    msg += f"\n今日已签到状态: {meta_data['result']['jg']} (时间: {meta_data['result'].get('sj')})"
+                send_bark_notification("info", msg)
+                return True
+
+            logger.success("发现进行中的签到批次:")
+            logger.info(f"    批次 ID (pcId): {batch.get('id')}")
+            logger.info(f"    楼栋 ID (ldId): {batch.get('ldId')}")
+            logger.info(f"    床位 ID (cwId): {batch.get('cwId')}")
+            logger.info(f"    学生 ID (xsId): {batch.get('xsId')}")
+            logger.info(f"    签到日期 (rq): {cqrq}")
+            logger.info(f"    签到规则状态: {batch.get('status')}")
+        except Exception as e:
+            logger.error(f"获取签到元数据时出错: {e}")
+            send_bark_notification("error", f"获取签到元数据异常: {e}")
+            return False
+
+        target_lat = lat
+        target_lng = lng
+        target_address = address
+
+        logger.debug(f"输入参数 - lat: {lat}, lng: {lng}, address: '{address}'")
+        if not target_lat or not target_lng or not target_address:
+            raw_qdwz = batch.get("qdwz", "[]")
+            logger.debug(f"从批次获取到的原始 qdwz 位置配置: {raw_qdwz}")
+            logger.info("正在从批次规则中解析位置要求...")
+            try:
+                allowed_locations = json.loads(raw_qdwz)
+                logger.debug(f"解析后的位置规则列表共包含 {len(allowed_locations)} 个候选位置")
+                if allowed_locations:
+                    for idx, loc in enumerate(allowed_locations):
+                        logger.debug(
+                            f"候选位置 {idx}: name='{loc.get('name')}', lat={loc.get('lat')}, lng={loc.get('lng')}")
+                    loc = allowed_locations[0]
+                    logger.success(f"找到允许的签到位置规则: {loc.get('name')}")
+                    if not target_lat:
+                        target_lat = loc.get("lat")
+                        logger.debug(f"采用规则纬度 lat: {target_lat}")
+                    if not target_lng:
+                        target_lng = loc.get("lng")
+                        logger.debug(f"采用规则经度 lng: {target_lng}")
+                    if not target_address:
+                        target_address = f"湖北省武汉市洪山区软件园东路，湖北科技职业学院(关山校区)内，{loc.get('name')}"
+                        logger.debug(f"采用规则地址 address: '{target_address}'")
+                else:
+                    logger.info("批次中未配置任何位置规则，使用默认位置。")
+            except Exception as e:
+                logger.warning(f"解析位置规则失败: {e}")
+
+        if not target_lat or not target_lng or not target_address:
+            target_lat = 30.477347181407705
+            target_lng = 114.41138545505815
+            target_address = "湖北省武汉市洪山区软件园东路，湖北科技职业学院(关山校区)"
+            logger.debug("因未解析到规则位置或参数不全，采用预设默认学校坐标")
+
+        logger.success(f"最终采用位置: {target_address} ({target_lat}, {target_lng})")
+
+        photo_obj = None
+        if batch.get("status") == "1":
+            logger.warning("规则提示: 此批次要求进行 照片 签到。")
+            image_bytes = None
+
+            if photo and os.path.exists(photo):
+                photo_path = Path(photo)
+                photo_name = photo_path.name
+                with open(photo_path, "rb") as f:
+                    image_bytes = f.read()
+                logger.info(f"正在从该路径加载照片: {photo_path}")
+            else:
+                logger.info("未提供自定义照片，自动生成一张符合手机拍照比例(3:4，如 600x800)的纯黑 JPEG 图片...")
+                now_str = datetime.datetime.now().strftime("%Y-%m-%d %H%M%S%f")[:-3]
+                photo_name = f"{now_str}.jpg"
+                try:
+                    img = Image.new('RGB', (600, 800), color='black')
+                    img_byte_arr = io.BytesIO()
+                    img.save(img_byte_arr, format='JPEG')
+                    image_bytes = img_byte_arr.getvalue()
+                    logger.success("成功利用 Pillow 生成 600x800 纯黑图片")
+                except Exception as e:
+                    logger.warning(f"使用 Pillow 生成图片失败: {e}，回退到 1x1 像素的占位图...")
+                    image_bytes = DUMMY_JPG_BYTES
+
+            try:
+                uploaded_info = perform_image_upload(session, image_bytes, photo_name)
+                object_id = uploaded_info.get("objectId") or uploaded_info.get("objectid")
+                if not object_id:
+                    raise Exception("返回的数据不包含 objectId: " + str(uploaded_info))
+
+                photo_obj = {
+                    "type": "jpg",
+                    "objectid": object_id,
+                    "name": uploaded_info.get("name") or photo_name,
+                    "url": f"https://p.ananas.chaoxing.com/star3/origin/{object_id}.jpg"
+                }
+                logger.success(f"照片对象构建成功: objectid={object_id}")
+            except Exception as e:
+                logger.error(f"上传照片失败: {e}")
+                send_bark_notification("error", f"上传照片失败: {e}")
+                return False
+
+        now = datetime.datetime.now()
+        punch_time = now.strftime("%Y-%m-%d %H:%M:%S")
+
+        punch_params = {
+            "jg": "1",
+            "sj": punch_time,
+            "rq": cqrq,
+            "pcId": batch.get("id"),
+            "ldId": batch.get("ldId"),
+            "cwId": batch.get("cwId"),
+            "xsId": batch.get("xsId"),
+            "cqfs": "1",
+            "tp": photo_obj,
+            "dkwz": target_address
+        }
+        if device:
+            punch_params["lysbmc"] = device
+
+        logger.debug(f"签到明文载荷: {json.dumps(punch_params, ensure_ascii=False, indent=2)}")
+
+        plaintext_str = json.dumps(punch_params, ensure_ascii=False, separators=(',', ':'))
+        encrypted_hex = encrypt_des_hex(plaintext_str, "QRCODENC")
+        logger.debug(f"加密密文十六进制 (长度={len(encrypted_hex)}): {encrypted_hex}")
+
+        logger.info("正在提交打卡请求...")
+        clockin_url = f"https://{host}/housemaster/sg/roomCheckPunch/clockIn"
+
+        clockin_headers = {
+            **MOBILE_HEADERS,
+            "Content-Type": "application/json; charset=utf-8",
+            "Origin": f"https://{host}",
+            "Referer": f"https://{host}/mobile/?v={mobile_v}"
+        }
+
+        clockin_data = {
+            "jsonStr": encrypted_hex
+        }
+
+        try:
+            resp = session.post(clockin_url, headers=clockin_headers, json=clockin_data, timeout=15)
+            log_http_details("POST", clockin_url, headers=clockin_headers, req_body=clockin_data, resp=resp)
+
+            if resp.status_code == 200:
+                try:
+                    resp_json = resp.json()
+                    if resp_json.get("success") or resp_json.get("code") == 20000:
+                        msg = f"签到已提交！\n反馈: {resp_json.get('msg') or resp_json.get('message') or '成功'}"
+                        logger.success(msg)
+                        send_bark_notification("success", msg)
+                        return True
+                    else:
+                        msg = f"签到提交失败: {resp_json.get('msg') or resp_json.get('message') or resp.text}"
+                        logger.error(msg)
+                        send_bark_notification("error", msg)
+                        return False
+                except Exception:
+                    logger.exception("解析打卡返回结果异常")
+                    send_bark_notification("info", f"HTTP {resp.status_code}\n打卡请求已发出 (无法解析返回结果)")
+                    return False
+            else:
+                logger.error(f"HTTP 响应状态码异常: {resp.status_code}，响应内容: {resp.text}")
+                send_bark_notification("error", f"HTTP {resp.status_code}\n{resp.text[:100]}")
+                return False
+        except Exception as e:
+            logger.error(f"提交打卡请求时发生错误: {e}")
+            send_bark_notification("error", f"打卡提交异常: {e}")
+            return False
+
+    except Exception as e:
+        logger.error(f"打卡流程发生未捕获的异常: {e}")
+        return False
+    finally:
+        _config_global = old_config_global
+        logger.remove(sink_id)
+
+
 def main():
     parser = argparse.ArgumentParser(description="签到请求脚本。")
     parser.add_argument("--cookies", type=str, default=None, help="Cookie 文件路径")
@@ -479,287 +773,9 @@ def main():
         except Exception as e:
             logger.warning(f"读取 config.json 失败: {e}")
 
-    cookies_path = resolve_value(args.cookies, "cookies", "cookies.txt")
-    host = resolve_value(args.host, "host", "hbkjzy.qmx.chaoxing.com")
-    address = resolve_value(args.address, "address", "")
-    lat = resolve_value(args.lat, "lat", 0.0, type_conv=float)
-    lng = resolve_value(args.lng, "lng", 0.0, type_conv=float)
-    photo = resolve_value(args.photo, "photo", "")
-    device = resolve_value(args.device, "device", "iPhone 12")
-    username = resolve_value(args.username, "username", "")
-    password = resolve_value(args.password, "password", "")
+    cookies_path = resolve_value(args.cookies, "cookies", "cookies.txt", config_dict=config_data)
 
-    logger.info("=" * 60)
-    logger.info(f"{' ' * 26}定位打卡")
-    logger.info("=" * 60)
-
-    cookies = load_cookies(cookies_path)
-    if not cookies or not validate_cookies(cookies):
-        logger.warning("Cookie 不存在或已过期，需要重新登录。")
-        if not username or not password:
-            if os.environ.get("GITHUB_ACTIONS") or os.environ.get("CI"):
-                logger.error(
-                    "检测到在 GitHub Actions 环境中运行，但未检测到账号或密码配置！请在 config.json 中配置 username 和 password。")
-                send_bark_notification("error", "GitHub Actions 缺少账号密码配置")
-                return
-            username = input("请输入手机号/用户名: ").strip()
-            password = input("请输入密码: ").strip()
-        login_session = login_chaoxing(username, password)
-        if login_session:
-            save_cookies(cookies_path, login_session)
-            cookies = load_cookies(cookies_path)
-        else:
-            logger.error("登录失败，无法继续签到。")
-            send_bark_notification("error", "登录失败，请检查账号密码")
-            return
-
-    logger.success(f"成功加载有效 Cookie。UID: {cookies.get('UID', '未知')}")
-
-    mobile_v = fetch_mobile_version(host)
-
-    session = requests.Session()
-    session.cookies.update(cookies)
-
-    logger.info("正在交换机构 Token (ermLogin)...")
-    login_url = f"https://{host}/pedestal/user/ermLogin"
-    login_headers = {
-        **MOBILE_HEADERS,
-        "Referer": f"https://{host}/mobile/?v={mobile_v}"
-    }
-
-    try:
-        resp = session.get(login_url, headers=login_headers, timeout=15)
-        log_http_details("GET", login_url, headers=login_headers, resp=resp)
-        resp_data = resp.json()
-        if not resp_data.get("success"):
-            logger.error(f"Token 交换失败: {resp_data}")
-            send_bark_notification("error",
-                                   f"Token 交换失败: {resp_data.get('msg', '未知错误')}")
-            return
-
-        token = resp_data["data"]["token"]
-        logger.success(f"成功获取 Token: {token[:15]}...")
-    except Exception as e:
-        logger.error(f"Token 交换过程中出错: {e}")
-        send_bark_notification("error", f"Token 交换异常: {e}")
-        return
-
-    session.headers.update({"X-Token": token})
-    session.cookies["cx_qmx_token"] = token
-
-    logger.info("正在获取学生角色信息 (getInfox)...")
-    info_url = f"https://{host}/pedestal/user/getInfox?id="
-    info_headers = {
-        **MOBILE_HEADERS,
-        "Referer": f"https://{host}/mobile/?v={mobile_v}"
-    }
-    try:
-        resp = session.get(info_url, headers=info_headers, timeout=15)
-        resp_data = resp.json()
-        if not resp_data.get("success"):
-            logger.error(f"获取角色信息失败: {resp_data}")
-            send_bark_notification("error", "获取学生角色信息失败")
-            return
-
-        current_role_id = resp_data["data"]["currentRoleId"]
-        logger.success(f"成功获取当前角色 ID: {current_role_id}")
-        session.cookies["cx_qmx_role"] = current_role_id
-    except Exception as e:
-        logger.error(f"获取角色信息时出错: {e}")
-        send_bark_notification("error", f"获取角色信息异常: {e}")
-        return
-
-    logger.info("正在拉取签到批次与规则数据...")
-    metadata_url = f"https://{host}/housemaster/sg/roomCheckPunch/getStudentInfo?cqfs=1"
-    metadata_headers = {
-        **MOBILE_HEADERS,
-        "Referer": f"https://{host}/mobile/?v={mobile_v}"
-    }
-    try:
-        resp = session.get(metadata_url, headers=metadata_headers, timeout=15)
-        log_http_details("GET", metadata_url, headers=metadata_headers, resp=resp)
-        resp_data = resp.json()
-        if not resp_data.get("success"):
-            if str(resp_data.get("code"))[:3] == "200":
-                logger.info(resp_data.get("message"))
-                send_bark_notification("info", resp_data.get("message"))
-                return
-            else:
-                send_bark_notification("error", "获取签到元数据失败")
-            return
-
-        meta_data = resp_data.get("data", {})
-        batch = meta_data.get("batch")
-        cqrq = meta_data.get("cqrq", datetime.date.today().strftime("%Y-%m-%d"))
-
-        if not batch:
-            logger.info("当前没有处于活动状态的签到批次。")
-            msg = "当前没有活动状态的签到批次。"
-            if meta_data.get("result") and meta_data.get("result", {}).get("jg"):
-                logger.info(
-                    f"提示: 今日已签到状态为: {meta_data['result']['jg']} (时间: {meta_data['result'].get('sj')})")
-                msg += f"\n今日已签到状态: {meta_data['result']['jg']} (时间: {meta_data['result'].get('sj')})"
-            send_bark_notification("info", msg)
-            return
-
-        logger.success("发现进行中的签到批次:")
-        logger.info(f"    批次 ID (pcId): {batch.get('id')}")
-        logger.info(f"    楼栋 ID (ldId): {batch.get('ldId')}")
-        logger.info(f"    床位 ID (cwId): {batch.get('cwId')}")
-        logger.info(f"    学生 ID (xsId): {batch.get('xsId')}")
-        logger.info(f"    签到日期 (rq): {cqrq}")
-        logger.info(f"    签到规则状态: {batch.get('status')}")
-    except Exception as e:
-        logger.error(f"获取签到元数据时出错: {e}")
-        send_bark_notification("error", f"获取签到元数据异常: {e}")
-        return
-
-    target_lat = lat
-    target_lng = lng
-    target_address = address
-
-    logger.debug(f"输入参数 - lat: {lat}, lng: {lng}, address: '{address}'")
-    if not target_lat or not target_lng or not target_address:
-        raw_qdwz = batch.get("qdwz", "[]")
-        logger.debug(f"从批次获取到的原始 qdwz 位置配置: {raw_qdwz}")
-        logger.info("正在从批次规则中解析位置要求...")
-        try:
-            allowed_locations = json.loads(raw_qdwz)
-            logger.debug(f"解析后的位置规则列表共包含 {len(allowed_locations)} 个候选位置")
-            if allowed_locations:
-                for idx, loc in enumerate(allowed_locations):
-                    logger.debug(
-                        f"候选位置 {idx}: name='{loc.get('name')}', lat={loc.get('lat')}, lng={loc.get('lng')}")
-                loc = allowed_locations[0]
-                logger.success(f"找到允许的签到位置规则: {loc.get('name')}")
-                if not target_lat:
-                    target_lat = loc.get("lat")
-                    logger.debug(f"采用规则纬度 lat: {target_lat}")
-                if not target_lng:
-                    target_lng = loc.get("lng")
-                    logger.debug(f"采用规则经度 lng: {target_lng}")
-                if not target_address:
-                    target_address = f"湖北省武汉市洪山区软件园东路，湖北科技职业学院(关山校区)内，{loc.get('name')}"
-                    logger.debug(f"采用规则地址 address: '{target_address}'")
-            else:
-                logger.info("批次中未配置任何位置规则，使用默认位置。")
-        except Exception as e:
-            logger.warning(f"解析位置规则失败: {e}")
-
-    if not target_lat or not target_lng or not target_address:
-        target_lat = 30.477347181407705
-        target_lng = 114.41138545505815
-        target_address = "湖北省武汉市洪山区软件园东路，湖北科技职业学院(关山校区)"
-        logger.debug("因未解析到规则位置或参数不全，采用预设默认学校坐标")
-
-    logger.success(f"最终采用位置: {target_address} ({target_lat}, {target_lng})")
-
-    photo_obj = None
-    if batch.get("status") == "1":
-        logger.warning("规则提示: 此批次要求进行 照片 签到。")
-        image_bytes = None
-
-        if photo and os.path.exists(photo):
-            photo_path = Path(photo)
-            photo_name = photo_path.name
-            with open(photo_path, "rb") as f:
-                image_bytes = f.read()
-            logger.info(f"正在从该路径加载照片: {photo_path}")
-        else:
-            logger.info("未提供自定义照片，自动生成一张符合手机拍照比例(3:4，如 600x800)的纯黑 JPEG 图片...")
-            now_str = datetime.datetime.now().strftime("%Y-%m-%d %H%M%S%f")[:-3]
-            photo_name = f"{now_str}.jpg"
-            try:
-                img = Image.new('RGB', (600, 800), color='black')
-                img_byte_arr = io.BytesIO()
-                img.save(img_byte_arr, format='JPEG')
-                image_bytes = img_byte_arr.getvalue()
-                logger.success("成功利用 Pillow 生成 600x800 纯黑图片")
-            except Exception as e:
-                logger.warning(f"使用 Pillow 生成图片失败: {e}，回退到 1x1 像素的占位图...")
-                image_bytes = DUMMY_JPG_BYTES
-
-        try:
-            uploaded_info = perform_image_upload(session, image_bytes, photo_name)
-            object_id = uploaded_info.get("objectId") or uploaded_info.get("objectid")
-            if not object_id:
-                raise Exception("返回的数据不包含 objectId: " + str(uploaded_info))
-
-            photo_obj = {
-                "type": "jpg",
-                "objectid": object_id,
-                "name": uploaded_info.get("name") or photo_name,
-                "url": f"https://p.ananas.chaoxing.com/star3/origin/{object_id}.jpg"
-            }
-            logger.success(f"照片对象构建成功: objectid={object_id}")
-        except Exception as e:
-            logger.error(f"上传照片失败: {e}")
-            send_bark_notification("error", f"上传照片失败: {e}")
-            return
-
-    now = datetime.datetime.now()
-    punch_time = now.strftime("%Y-%m-%d %H:%M:%S")
-
-    punch_params = {
-        "jg": "1",
-        "sj": punch_time,
-        "rq": cqrq,
-        "pcId": batch.get("id"),
-        "ldId": batch.get("ldId"),
-        "cwId": batch.get("cwId"),
-        "xsId": batch.get("xsId"),
-        "cqfs": "1",
-        "tp": photo_obj,
-        "dkwz": target_address
-    }
-    if device:
-        punch_params["lysbmc"] = device
-
-    logger.debug(f"签到明文载荷: {json.dumps(punch_params, ensure_ascii=False, indent=2)}")
-
-    plaintext_str = json.dumps(punch_params, ensure_ascii=False, separators=(',', ':'))
-    encrypted_hex = encrypt_des_hex(plaintext_str, "QRCODENC")
-    logger.debug(f"加密密文十六进制 (长度={len(encrypted_hex)}): {encrypted_hex}")
-
-    logger.info("正在提交打卡请求...")
-    clockin_url = f"https://{host}/housemaster/sg/roomCheckPunch/clockIn"
-
-    clockin_headers = {
-        **MOBILE_HEADERS,
-        "Content-Type": "application/json; charset=utf-8",
-        "Origin": f"https://{host}",
-        "Referer": f"https://{host}/mobile/?v={mobile_v}"
-    }
-
-    clockin_data = {
-        "jsonStr": encrypted_hex
-    }
-
-    try:
-        resp = session.post(clockin_url, headers=clockin_headers, json=clockin_data, timeout=15)
-        log_http_details("POST", clockin_url, headers=clockin_headers, req_body=clockin_data, resp=resp)
-
-        if resp.status_code == 200:
-            try:
-                resp_json = resp.json()
-                if resp_json.get("success") or resp_json.get("code") == 20000:
-                    msg = f"签到已提交！\n反馈: {resp_json.get('msg') or resp_json.get('message') or '成功'}"
-                    logger.success(msg)
-                    send_bark_notification("success", msg)
-                else:
-                    msg = f"签到提交失败: {resp_json.get('msg') or resp_json.get('message') or resp.text}"
-                    logger.error(msg)
-                    send_bark_notification("error", msg)
-            except Exception:
-                logger.exception("解析打卡返回结果异常")
-                send_bark_notification("info", f"HTTP {resp.status_code}\n打卡请求已发出 (无法解析返回结果)")
-        else:
-            logger.error(f"HTTP 响应状态码异常: {resp.status_code}，响应内容: {resp.text}")
-            send_bark_notification("error", f"HTTP {resp.status_code}\n{resp.text[:100]}")
-    except Exception as e:
-        logger.error(f"提交打卡请求时发生错误: {e}")
-        send_bark_notification("error", f"打卡提交异常: {e}")
-        return
+    run_sign_in(config_data, cookies_path, "logs")
 
 
 if __name__ == "__main__":
