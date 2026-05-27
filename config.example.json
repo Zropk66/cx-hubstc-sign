@@ -7,9 +7,13 @@
   "lng": 114.41138545505815,
   "device": "iPhone 12",
   "enable_notification": false,
+  "only_main_notification": false,
   "notification_type": "bark",
   "bark": {
     "device_key": "",
     "device_token": ""
+  },
+  "wechat": {
+    "user_id": ""
   }
 }

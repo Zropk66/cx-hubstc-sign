@@ -337,6 +337,83 @@ def perform_image_upload(session: requests.Session, image_bytes: bytes, filename
     return upload_data.get("data", {})
 
 
+def _get_wechat_credentials(args, has_args) -> tuple[str, str, str, str]:
+    app_id = "wx2aae0401b2d24931"
+    app_secret = "447916ef9efbef70867646f78ae9dd07"
+    template_id = "ZqwbIFo19egPmyPnIYOo9LDZAREqUioIeUJ0eUEYUks"
+
+    user_id = getattr(args, "wechat_userid", None) if has_args else None
+
+    cfg = _config_global
+    if not user_id and cfg and "wechat" in cfg and isinstance(cfg["wechat"], dict):
+        user_id = cfg["wechat"].get("user_id")
+
+    return app_id, app_secret, user_id or "", template_id
+
+
+def send_wechat_notification(status: str, content: str = '') -> bool:
+    """
+    通过微信测试号模板消息推送状态
+    https://mp.weixin.qq.com/debug/cgi-bin/sandboxinfo?action=showinfo&t=sandbox/index
+    """
+    args = globals().get("_args_global", None)
+    has_args = args is not None and type(args).__name__ not in ('Mock', 'MagicMock', 'NonCallableMagicMock')
+    app_id, app_secret, user_id, template_id = _get_wechat_credentials(args, has_args)
+
+    if not user_id:
+        logger.warning("未配置微信 user_id，跳过微信推送")
+        return False
+
+    status_map = {
+        "success": "✅",
+        "error": "❌",
+        "info": "🔔"
+    }
+    emoji = status_map.get(status.lower() if hasattr(status, "lower") else str(status), "🔔")
+    content = f"{emoji} {content}" if content else f"{emoji} 暂无详情"
+
+    try:
+        # 1. 获取 access_token
+        token_url = f"https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={app_id}&secret={app_secret}"
+        token_resp = requests.get(token_url, timeout=10)
+        log_http_details("GET", token_url, resp=token_resp)
+        token_data = token_resp.json()
+
+        access_token = token_data.get("access_token")
+        if not access_token:
+            logger.error(f"获取微信 access_token 失败: {token_data.get('errmsg', '未知错误')}")
+            return False
+
+        # 2. 发送模板消息
+        send_url = f"https://api.weixin.qq.com/cgi-bin/message/template/send?access_token={access_token}"
+
+        payload = {
+            "touser": user_id,
+            "template_id": template_id,
+            "data": {
+                "content": {
+                    "value": content,
+                    "color": "#173177"
+                }
+            }
+        }
+
+        resp = requests.post(send_url, json=payload, timeout=10)
+        log_http_details("POST", send_url, req_body=payload, resp=resp)
+        resp_data = resp.json()
+
+        if resp_data.get("errcode") == 0:
+            logger.success("微信测试号模板消息推送成功")
+            return True
+        else:
+            logger.error(f"微信测试号模板消息推送失败: {resp_data.get('errmsg')}")
+            return False
+
+    except Exception as e:
+        logger.error(f"微信测试号推送过程中发生异常: {e}")
+        return False
+
+
 def _get_bark_credentials(args, has_args) -> tuple[str, str]:
     bark_device_key = getattr(args, "bark_device_key", None) if has_args else None
     bark_device_token = getattr(args, "bark_device_token", None) if has_args else None
@@ -504,10 +581,22 @@ def send_notification(status: str, content: str = ''):
     if not notif_type:
         raise ValueError("启用了推送通知，但缺失关键配置: notification_type (请在命令行参数或 config.json 中配置)")
 
-    if notif_type == "bark":
-        send_bark_notification(status, content)
+    # 支持多通道推送 (以列表、逗号/空格分隔的字符串表示)
+    channels = []
+    if isinstance(notif_type, list):
+        channels = [str(c).strip().lower() for c in notif_type]
+    elif isinstance(notif_type, str):
+        channels = [c.strip().lower() for c in re.split(r'[,;\s]+', notif_type) if c.strip()]
     else:
-        logger.warning(f"不支持的推送软件类型: {notif_type}")
+        channels = [str(notif_type).strip().lower()]
+
+    for channel in channels:
+        if channel == "bark":
+            send_bark_notification(status, content)
+        elif channel in ("wechat", "wechat_template"):
+            send_wechat_notification(status, content)
+        else:
+            logger.warning(f"不支持的推送软件类型: {channel}")
 
 
 def has_cli_overrides(args: argparse.Namespace) -> bool:
@@ -517,7 +606,8 @@ def has_cli_overrides(args: argparse.Namespace) -> bool:
     """
     override_keys = [
         "cookies", "address", "lat", "lng", "photo",
-        "device", "username", "password", "bark_device_key", "bark_device_token", "notification_type"
+        "device", "username", "password", "bark_device_key", "bark_device_token", "notification_type",
+        "wechat_userid"
     ]
     for key in override_keys:
         val = getattr(args, key, None)
@@ -956,6 +1046,7 @@ def main():
                         help="禁用推送通知")
     parser.add_argument("--only-main-notification", dest="only_main_notification", action="store_true", default=None,
                         help="仅允许主账号发送推送通知（无视所有子账号的推送）")
+    parser.add_argument("--wechat-userid", type=str, default=None, help="接收消息的微信用户 OpenID (可选)")
 
     args = parser.parse_args()
     global _args_global, _config_global

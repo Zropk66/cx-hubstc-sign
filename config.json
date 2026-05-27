@@ -7,9 +7,16 @@
   "lng": 114.41138545505815,
   "device": "iPhone 12",
   "enable_notification": true,
-  "notification_type": "bark",
+  "only_main_notification": false,
+  "notification_type": [
+    "bark",
+    "wechat"
+  ],
   "bark": {
     "device_key": "4BQcuEEXvfQvtDQiiwXEGU",
     "device_token": "dafe17c14671013faac5271b3f37c87653b404241e36aa0da397d5567425289"
+  },
+  "wechat": {
+    "user_id": "o7iqgvsJbAKi_x9euYo8Pz-lPMV8"
   }
 }
