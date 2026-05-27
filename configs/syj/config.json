@@ -6,7 +6,7 @@
   "lat": 30.477347181407705,
   "lng": 114.41138545505815,
   "device": "iPhone 13 Pro",
-  "enable_notification": false,
+  "enable_notification": true,
   "notification_type": "bark",
   "bark": {
     "device_key": "kGvnepp2u9vGpRGH2vpiMG",
