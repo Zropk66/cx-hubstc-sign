@@ -423,6 +423,22 @@ def send_bark_notification(status: str, content: str = ''):
             logger.error(f"使用设备 Token 注册推送失败: {e}")
 
 
+def has_cli_overrides(args: argparse.Namespace) -> bool:
+    """
+    检查是否传入了非默认的命令行覆盖参数。
+    如果传入了如 username, password, address, lat, lng, cookies 等自定义打卡参数，则返回 True
+    """
+    override_keys = [
+        "cookies", "address", "lat", "lng", "photo",
+        "device", "username", "password", "bark_device_key", "bark_device_token"
+    ]
+    for key in override_keys:
+        val = getattr(args, key, None)
+        if val is not None:
+            return True
+    return False
+
+
 def main():
     parser = argparse.ArgumentParser(description="签到请求脚本。")
     parser.add_argument("--cookies", type=str, default=None, help="Cookie 文件路径")
