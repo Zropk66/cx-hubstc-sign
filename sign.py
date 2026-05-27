@@ -1115,6 +1115,18 @@ def main():
             logger.info("当前账户已配置为禁用 (enable: false)，跳过该账户")
             return
 
+        # 检查过期时间
+        expired, expires_str = is_config_expired(config_data)
+        if expired:
+            logger.warning(f"当前主账户已于 {expires_str} 过期，跳过打卡流程。")
+            # 临时置入全局配置以支持通知的凭证读取
+            _config_global = config_data
+            try:
+                send_notification("error", f"账户 主账户 已于 {expires_str} 过期，已停止打卡")
+            except Exception as ne:
+                logger.error(f"发送过期通知失败: {ne}")
+            return
+
         cookies_path = resolve_value(args.cookies, "cookies", "cookies.txt", config_dict=config_data)
         run_sign_in(config_data, cookies_path, "logs")
         return
@@ -1160,6 +1172,17 @@ def main():
     for i, (config, cookies_path, log_dir, account_name) in enumerate(accounts_to_run):
         if not config.get("enable", True):
             logger.info(f"[{i + 1}/{len(accounts_to_run)}] 账户 {account_name} 已配置为禁用 (enable: false)，跳过该账户")
+            continue
+
+        # 检查过期时间
+        expired, expires_str = is_config_expired(config)
+        if expired:
+            logger.warning(f"[{i + 1}/{len(accounts_to_run)}] 账户 {account_name} 已于 {expires_str} 过期，跳过该账户")
+            _config_global = config
+            try:
+                send_notification("error", f"账户 {account_name} 已于 {expires_str} 过期，已停止打卡")
+            except Exception as ne:
+                logger.error(f"发送过期通知失败: {ne}")
             continue
         logger.info(f"[{i + 1}/{len(accounts_to_run)}] 开始处理账户: {account_name}")
         _config_global = config
