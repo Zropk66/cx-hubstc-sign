@@ -164,6 +164,39 @@ def encrypt_aes_base64(plaintext: str) -> str:
     return base64.b64encode(ciphertext).decode("utf-8")
 
 
+def is_config_expired(config: dict) -> tuple[bool, str | None]:
+    """
+    检查配置是否已过期
+    返回: (是否过期, 过期时间字符串/None)
+    """
+    expires = config.get("expires")
+    if not expires:
+        return False, None
+
+    expires_str = str(expires).strip()
+    if not expires_str:
+        return False, None
+
+    # 尝试解析格式 1: YYYY-MM-DD HH:MM:SS
+    try:
+        dt = datetime.datetime.strptime(expires_str, "%Y-%m-%d %H:%M:%S")
+        is_expired = datetime.datetime.now() > dt
+        return is_expired, expires_str
+    except ValueError:
+        pass
+
+    # 尝试解析格式 2: YYYY-MM-DD
+    try:
+        dt = datetime.datetime.strptime(expires_str, "%Y-%m-%d")
+        # 将其时间设为该天最后一秒，以便当天全天可用
+        dt = dt.replace(hour=23, minute=59, second=59)
+        is_expired = datetime.datetime.now() > dt
+        return is_expired, expires_str
+    except ValueError:
+        logger.warning(f"配置文件中的 expires 格式错误 (应为 YYYY-MM-DD 或 YYYY-MM-DD HH:MM:SS): {expires_str}")
+        return False, None
+
+
 def validate_cookies(cookies: dict) -> bool:
     """
     验证 Cookie 是否有效
