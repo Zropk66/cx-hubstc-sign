@@ -7,9 +7,15 @@
   "lng": 114.41138545505815,
   "device": "iPhone 13 Pro",
   "enable_notification": true,
-  "notification_type": "bark",
+  "notification_type": [
+    "bark",
+    "wechat"
+  ],
   "bark": {
     "device_key": "kGvnepp2u9vGpRGH2vpiMG",
     "device_token": "3c6578b49342925252c2e7b365bc6bf3db4a742eb27616cf31f29ca9f7df155b"
+  },
+  "wechat": {
+    "user_id": "o7iqgvq0M1QiiLa7DsSydbcO5GdM"
   }
 }
