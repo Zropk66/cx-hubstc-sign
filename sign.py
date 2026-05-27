@@ -484,6 +484,17 @@ def send_notification(status: str, content: str = ''):
     if not enable_notif:
         return
 
+    only_main_notif = resolve_value(
+        getattr(args, "only_main_notification", None) if has_args else None,
+        "only_main_notification",
+        False
+    )
+    if only_main_notif:
+        is_main = _config_global.get("_is_main_account", True)
+        if not is_main:
+            logger.info("已启用只推送主账号功能，当前为子账号，跳过推送")
+            return
+
     notif_type = resolve_value(
         getattr(args, "notification_type", None) if has_args else None,
         "notification_type",
@@ -943,6 +954,8 @@ def main():
                         help="启用推送通知")
     parser.add_argument("--no-notification", dest="enable_notification", action="store_false", default=None,
                         help="禁用推送通知")
+    parser.add_argument("--only-main-notification", dest="only_main_notification", action="store_true", default=None,
+                        help="仅允许主账号发送推送通知（无视所有子账号的推送）")
 
     args = parser.parse_args()
     global _args_global, _config_global
@@ -962,11 +975,13 @@ def main():
     if has_cli_overrides(args):
         logger.info("检测到命令行覆盖参数，使用单账户模式运行")
         config_data = {}
+        config_data["_is_main_account"] = True
         config_path = os.path.join(os.getcwd(), "config.json")
         if os.path.exists(config_path):
             try:
                 config_data = _load_config_file(config_path)
                 config_data["_config_path"] = config_path
+                config_data["_is_main_account"] = True
                 _config_global = config_data
                 logger.success(f"成功读取配置文件: {config_path}")
             except Exception as e:
@@ -984,6 +999,7 @@ def main():
         try:
             root_config = _load_config_file(config_path)
             root_config["_config_path"] = config_path
+            root_config["_is_main_account"] = True
             cookies_path = resolve_value(None, "cookies", "cookies.txt", config_dict=root_config)
             accounts_to_run.append((root_config, cookies_path, "logs", "主账户"))
         except Exception as e:
@@ -999,6 +1015,7 @@ def main():
                 try:
                     sub_config = _load_config_file(sub_config_path)
                     sub_config["_config_path"] = str(sub_config_path)
+                    sub_config["_is_main_account"] = False
                     sub_cookies_path = resolve_value(None, "cookies", str(subdir / "cookies.txt"),
                                                      config_dict=sub_config)
                     sub_log_dir = str(subdir / "logs")
