@@ -1,15 +1,15 @@
 {
-  "username": "13972194319",
-  "password": "Dxy2006814",
+  "username": "",
+  "password": "",
   "host": "hbkjzy.qmx.chaoxing.com",
   "address": "湖北省武汉市洪山区软件园东路，湖北科技职业学院(关山校区)",
   "lat": 30.477347181407705,
   "lng": 114.41138545505815,
   "device": "iPhone 12",
-  "enable_notification": true,
+  "enable_notification": false,
   "notification_type": "bark",
   "bark": {
-    "device_key": "4BQcuEEXvfQvtDQiiwXEGU",
-    "device_token": "dafe17c14671013faac5271b3f37c87653b404241e36aa0da397d5567425289"
+    "device_key": "",
+    "device_token": ""
   }
 }

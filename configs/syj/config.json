@@ -1,0 +1,15 @@
+{
+  "username": "19171308113",
+  "password": "123456su",
+  "host": "hbkjzy.qmx.chaoxing.com",
+  "address": "湖北省武汉市洪山区软件园东路，湖北科技职业学院(关山校区)",
+  "lat": 30.477347181407705,
+  "lng": 114.41138545505815,
+  "device": "iPhone 13 Pro",
+  "enable_notification": false,
+  "notification_type": "bark",
+  "bark": {
+    "device_key": "kGvnepp2u9vGpRGH2vpiMG",
+    "device_token": "3c6578b49342925252c2e7b365bc6bf3db4a742eb27616cf31f29ca9f7df155b"
+  }
+}
