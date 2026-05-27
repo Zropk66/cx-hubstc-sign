@@ -1,9 +1,6 @@
 name: ChaoXing Auto Sign
 
 on:
-  schedule:
-    - cron: '33 21 * * *'
-      timezone: "Asia/Shanghai"
   workflow_dispatch:
     inputs:
       custom_args:
