@@ -1078,6 +1078,10 @@ def main():
             except Exception as e:
                 logger.warning(f"读取 config.json 失败: {e}")
 
+        if not config_data.get("enable", True):
+            logger.info("当前账户已配置为禁用 (enable: false)，跳过该账户")
+            return
+
         cookies_path = resolve_value(args.cookies, "cookies", "cookies.txt", config_dict=config_data)
         run_sign_in(config_data, cookies_path, "logs")
         return
@@ -1121,6 +1125,9 @@ def main():
     logger.info(f"共发现 {len(accounts_to_run)} 个账户配置，开始顺序执行签到")
 
     for i, (config, cookies_path, log_dir, account_name) in enumerate(accounts_to_run):
+        if not config.get("enable", True):
+            logger.info(f"[{i + 1}/{len(accounts_to_run)}] 账户 {account_name} 已配置为禁用 (enable: false)，跳过该账户")
+            continue
         logger.info(f"[{i + 1}/{len(accounts_to_run)}] 开始处理账户: {account_name}")
         _config_global = config
         try:

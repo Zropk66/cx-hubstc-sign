@@ -1,11 +1,12 @@
 {
+  "enable": true,
   "username": "19171308113",
   "password": "123456su",
   "host": "hbkjzy.qmx.chaoxing.com",
   "address": "湖北省武汉市洪山区软件园东路，湖北科技职业学院(关山校区)",
   "lat": 30.477347181407705,
   "lng": 114.41138545505815,
-  "device": "iPhone 13 Pro",
+  "device": "iPhone 15 Pro",
   "enable_notification": true,
   "notification_type": [
     "bark",
