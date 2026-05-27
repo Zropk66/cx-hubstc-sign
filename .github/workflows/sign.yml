@@ -7,6 +7,11 @@ on:
         description: '自定义运行参数 (例如: --host xxx.chaoxing.com --device iPhone)'
         required: false
         default: ''
+      enable_commit:
+        description: '是否提交并推送更新的配置、Cookies和日志'
+        type: boolean
+        required: false
+        default: true
 
 jobs:
   sign:
@@ -41,6 +46,7 @@ jobs:
           fi
 
       - name: Commit and Push updated Configs, Cookies, and Logs
+        if: ${{ github.event.inputs.enable_commit != 'false' }}
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
