@@ -331,7 +331,10 @@ def _exchange_erm_token(session: requests.Session, host: str, mobile_v: str) -> 
         resp_data = resp.json()
         if not resp_data.get("success"):
             logger.error(f"Token 交换失败: {resp_data}")
-            send_notification(f"Token 交换失败: {resp_data.get('msg', '未知错误')}")
+            send_notification({
+                "content": "交换机构 Token",
+                "status": resp_data.get('message', '失败 (具体信息查看日志文件)')
+            })
             return None
 
         token = resp_data["data"]["token"]
@@ -547,27 +550,37 @@ def _submit_clock_in(session: requests.Session, host: str, mobile_v: str, punch_
         if resp.status_code == 200:
             try:
                 resp_json = resp.json()
+                status = resp_json.get('message') or '成功'
                 if resp_json.get("success") or resp_json.get("code") == 20000:
-                    feedback = resp_json.get('msg') or resp_json.get('message') or '成功'
+
                     logger.success(f"签到已提交！")
-                    logger.success(f"状态：: {feedback}")
+                    logger.success(f"状态：: 成功")
                     send_notification({
-                        "status": "签到已提交！",
-                        "content": feedback
+                        "content": "签到状态",
+                        "status": status + f"(时间: {resp_json["data"]['result'].get('sj')})"
                     })
                     return True
                 else:
-                    msg = f"签到提交失败: {resp_json.get('msg') or resp_json.get('message') or resp.text}"
+                    msg = f"签到提交失败: {resp_json.get('message') or resp.text}"
                     logger.error(msg)
-                    send_notification(msg)
+                    send_notification({
+                        "content": "签到状态",
+                        "status": status + " (具体信息查看日志文件)"
+                    })
                     return False
             except Exception:
                 logger.exception("解析打卡返回结果异常")
-                send_notification(f"HTTP {resp.status_code}\n打卡请求已发出 (无法解析返回结果)")
+                send_notification({
+                    "content": f"HTTP {resp.status_code}",
+                    "status": "打卡请求已发出 (无法解析返回结果)"
+                })
                 return False
         else:
             logger.error(f"HTTP 响应状态码异常: {resp.status_code}，响应内容: {resp.text}")
-            send_notification(f"HTTP {resp.status_code}\n{resp.text[:100]}")
+            send_notification({
+                "content": f"HTTP {resp.status_code}",
+                "status": resp.text[:100]
+            })
             return False
     except Exception as e:
         logger.error(f"提交打卡请求时发生错误: {e}")
