@@ -7,8 +7,8 @@
   "lat": 30.477347181407705,
   "lng": 114.41138545505815,
   "device": "iPhone 17 Pro Max",
+  "expires": null,
   "enable_notification": true,
-  "only_main_notification": false,
   "notification_type": [
     "bark",
     "wechat"

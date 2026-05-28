@@ -53,9 +53,18 @@ def main():
     parser.add_argument("--only-main-notification", dest="only_main_notification", action="store_true", default=None,
                         help="仅允许主账号发送推送通知（无视所有子账号的推送）")
     parser.add_argument("--wechat-userid", type=str, default=None, help="接收消息的微信用户 OpenID (可选)")
+    parser.add_argument("--web", action="store_true", help="启动配置管理 Web 面板")
+    parser.add_argument("--port", type=int, default=8000, help="Web 面板端口 (默认: 8000)")
+    parser.add_argument("--host-ip", type=str, default="127.0.0.1", help="Web 面板绑定 IP (默认: 127.0.0.1)")
 
     args = parser.parse_args()
     config.args_global = args
+
+    if args.web:
+        logger.info(f"正在启动 Web 配置管理面板: http://{args.host_ip}:{args.port}")
+        from .web import start_web_server
+        start_web_server(host=args.host_ip, port=args.port)
+        return
 
     logger.debug("=== Running Environment Metadata ===")
     logger.debug(f"OS: {platform.system()} {platform.release()} ({sys.platform})")

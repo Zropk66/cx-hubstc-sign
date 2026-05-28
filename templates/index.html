@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>超星签到配置管理面板</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans">
+  <div id="app" class="flex h-screen overflow-hidden">
+    <!-- Notifications -->
+    <div class="fixed top-4 right-4 z-50 space-y-2">
+      <div v-if="successMsg" class="bg-green-500 text-white px-4 py-3 rounded shadow-lg flex items-center space-x-2 transition-all">
+        <i class="fa-solid fa-circle-check"></i>
+        <span>{{ successMsg }}</span>
+      </div>
+      <div v-if="errorMsg" class="bg-red-500 text-white px-4 py-3 rounded shadow-lg flex items-center space-x-2 transition-all">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span>{{ errorMsg }}</span>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="w-80 bg-gray-955 text-white flex flex-col" style="background-color: #0b0f19;">
+      <div class="p-6 border-b border-gray-800">
+        <h1 class="text-xl font-bold flex items-center space-x-2">
+          <i class="fa-solid fa-signature text-blue-500"></i>
+          <span>签到控制台</span>
+        </h1>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4 space-y-2">
+        <div class="flex justify-between items-center px-2 mb-4 text-xs font-semibold text-gray-500 uppercase">
+          <span>账户列表</span>
+          <button @click="showCreateModal = true" class="text-blue-500 hover:text-blue-400 font-bold">
+            <i class="fa-solid fa-plus mr-1"></i> 新增
+          </button>
+        </div>
+
+        <div v-for="acc in accounts" :key="acc.id"
+             @click="selectAccount(acc.id)"
+             :class="['p-3 rounded-lg cursor-pointer flex items-center justify-between transition-colors',
+                      selectedAccountId === acc.id ? 'bg-blue-600' : 'bg-gray-900 hover:bg-gray-800']">
+          <div class="truncate mr-2">
+            <div class="font-medium truncate flex items-center space-x-1">
+              <span v-if="acc.is_main" class="text-xs bg-yellow-500 text-black px-1.5 py-0.2 rounded font-bold mr-1">主</span>
+              <span>{{ acc.name }}</span>
+            </div>
+            <div class="text-xs opacity-60 truncate">{{ acc.username || '未配置手机号' }}</div>
+          </div>
+          <div class="flex space-x-1.5 flex-shrink-0">
+            <span :class="['w-2.5 h-2.5 rounded-full', acc.enable ? 'bg-green-500' : 'bg-gray-500']"
+                  :title="acc.enable ? '已启用' : '已禁用'"></span>
+            <span v-if="acc.expired" class="w-2.5 h-2.5 rounded-full bg-red-500" title="配置已过期"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="flex-1 flex flex-col bg-gray-50 overflow-hidden" v-if="selectedAccountId && configData">
+      <!-- Top header bar -->
+      <div class="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between">
+        <div>
+          <h2 class="text-2xl font-bold text-gray-900">{{ selectedAccountId === 'main' ? '主账户' : selectedAccountId }}</h2>
+          <p class="text-sm text-gray-500">配置路径: {{ selectedAccountId === 'main' ? 'config.json' : 'configs/' + selectedAccountId + '/config.json' }}</p>
+        </div>
+        <div class="flex space-x-3">
+          <button @click="runSignIn" :disabled="isRunning"
+                  class="bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 flex items-center space-x-2">
+            <i class="fa-solid fa-play" :class="{'fa-spin': isRunning}"></i>
+            <span>{{ isRunning ? '正在打卡...' : '立即打卡' }}</span>
+          </button>
+          <button v-if="selectedAccountId !== 'main'" @click="deleteAccount"
+                  class="bg-red-100 text-red-700 border border-red-200 px-4 py-2 rounded-lg font-medium hover:bg-red-200">
+            删除账户
+          </button>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="bg-white border-b border-gray-200 px-8 flex">
+        <button @click="activeTab = 'config'" :class="['py-3 px-4 font-medium border-b-2 transition-colors', activeTab === 'config' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700']">配置选项</button>
+        <button @click="activeTab = 'cookies'; fetchCookies()" :class="['py-3 px-4 font-medium border-b-2 transition-colors', activeTab === 'cookies' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700']">Cookies 管理</button>
+        <button @click="activeTab = 'logs'; fetchLogs()" :class="['py-3 px-4 font-medium border-b-2 transition-colors', activeTab === 'logs' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700']">查看日志</button>
+      </div>
+
+      <!-- Tab Content Frame -->
+      <div class="flex-1 overflow-y-auto p-8">
+        <!-- Configuration Form Tab -->
+        <div v-show="activeTab === 'config'" class="max-w-4xl bg-white rounded-xl shadow border border-gray-200 p-6 space-y-6">
+          <div class="flex justify-between items-center border-b border-gray-150 pb-4">
+            <h3 class="text-lg font-bold text-gray-950">账号核心属性</h3>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" v-model="configData.enable" class="sr-only peer">
+              <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              <span class="ml-2 font-medium text-gray-700">启用打卡服务</span>
+            </label>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">用户名 / 手机号</label>
+              <input type="text" v-model="configData.username" class="w-full border border-gray-300 rounded-lg p-2.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="13900000000">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">超星登录密码</label>
+              <input type="password" v-model="configData.password" class="w-full border border-gray-300 rounded-lg p-2.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="请输入密码">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">域名 (Host)</label>
+              <input type="text" v-model="configData.host" class="w-full border border-gray-300 rounded-lg p-2.5 focus:border-blue-500" placeholder="hbkjzy.qmx.chaoxing.com">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">模拟设备 (Device)</label>
+              <input type="text" v-model="configData.device" class="w-full border border-gray-300 rounded-lg p-2.5 focus:border-blue-500" placeholder="iPhone 15 Pro">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">配置有效期 (Expires - YYYY-MM-DD)</label>
+              <input type="text" v-model="configData.expires" class="w-full border border-gray-300 rounded-lg p-2.5 focus:border-blue-500" placeholder="可选: 2026-12-31">
+            </div>
+          </div>
+
+          <div class="border-t border-gray-150 pt-6">
+            <h3 class="text-lg font-bold text-gray-950 mb-4">打卡位置定位</h3>
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">详细打卡物理地址</label>
+                <input type="text" v-model="configData.address" class="w-full border border-gray-300 rounded-lg p-2.5 focus:border-blue-500" placeholder="省市区街道门牌号...">
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label class="block text-sm font-semibold text-gray-700 mb-1">经度 (Longitude)</label>
+                  <input type="number" step="0.000001" v-model.number="configData.lng" class="w-full border border-gray-300 rounded-lg p-2.5 focus:border-blue-500">
+                </div>
+                <div>
+                  <label class="block text-sm font-semibold text-gray-700 mb-1">纬度 (Latitude)</label>
+                  <input type="number" step="0.000001" v-model.number="configData.lat" class="w-full border border-gray-300 rounded-lg p-2.5 focus:border-blue-500">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="border-t border-gray-150 pt-6">
+            <div class="flex justify-between items-center mb-4">
+              <h3 class="text-lg font-bold text-gray-955">消息推送设置</h3>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" v-model="configData.enable_notification" class="sr-only peer">
+                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <span class="ml-2 font-medium text-gray-700">启用消息推送</span>
+              </label>
+            </div>
+
+            <div v-show="configData.enable_notification" class="space-y-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+              <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">推送通道 (可多选)</label>
+                <div class="flex space-x-6">
+                  <label class="inline-flex items-center">
+                    <input type="checkbox" value="bark" v-model="configData.notification_type" class="rounded text-blue-600">
+                    <span class="ml-2">Bark 推送</span>
+                  </label>
+                  <label class="inline-flex items-center">
+                    <input type="checkbox" value="wechat" v-model="configData.notification_type" class="rounded text-blue-600">
+                    <span class="ml-2">微信推送</span>
+                  </label>
+                </div>
+              </div>
+
+              <!-- Bark Credentials -->
+              <div v-show="configData.notification_type.includes('bark')" class="border-t border-gray-200 pt-3 space-y-3">
+                <h4 class="font-semibold text-sm text-gray-800">Bark 参数配置</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Bark Device Key</label>
+                    <input type="text" v-model="configData.bark.device_key" class="w-full border border-gray-300 rounded p-2 text-sm focus:border-blue-500">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Bark Device Token</label>
+                    <input type="text" v-model="configData.bark.device_token" class="w-full border border-gray-300 rounded p-2 text-sm focus:border-blue-500">
+                  </div>
+                </div>
+              </div>
+
+              <!-- WeChat Credentials -->
+              <div v-show="configData.notification_type.includes('wechat')" class="border-t border-gray-200 pt-3 space-y-3">
+                <h4 class="font-semibold text-sm text-gray-800">WeChat 模板推送参数</h4>
+                <div>
+                  <label class="block text-xs font-semibold text-gray-600 mb-1">微信 OpenID (User ID)</label>
+                  <input type="text" v-model="configData.wechat.user_id" class="w-full border border-gray-300 rounded p-2 text-sm focus:border-blue-500" placeholder="o7iqgvs...">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-end pt-4">
+            <button @click="saveConfig" class="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-blue-700">
+              保存配置
+            </button>
+          </div>
+        </div>
+
+        <!-- Cookies Tab -->
+        <div v-show="activeTab === 'cookies'" class="max-w-4xl bg-white rounded-xl shadow border border-gray-200 p-6 space-y-4">
+          <div>
+            <h3 class="text-lg font-bold text-gray-950 mb-1">Cookies 编辑器</h3>
+            <p class="text-sm text-gray-500">超星账户的缓存 Cookie 令牌，格式形如: <code class="bg-gray-100 p-1 rounded font-mono text-red-655 text-xs" style="color: #c7254e;">UID=12345; cx_qmx_token=...</code></p>
+          </div>
+          <textarea v-model="cookieData" rows="8" class="w-full border border-gray-300 rounded-lg p-3 font-mono text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="key1=val1; key2=val2;"></textarea>
+          <div class="flex justify-end">
+            <button @click="saveCookies" class="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-blue-700">
+              保存 Cookies
+            </button>
+          </div>
+        </div>
+
+        <!-- Logs Tab -->
+        <div v-show="activeTab === 'logs'" class="flex space-x-6 h-[calc(100vh-270px)]">
+          <!-- Left side: list of logs -->
+          <div class="w-64 bg-white border border-gray-200 rounded-xl p-4 overflow-y-auto space-y-2 flex-shrink-0">
+            <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">日志历史记录</div>
+            <div v-for="log in logFiles" :key="log.filename"
+                 @click="viewLogContent(log.filename)"
+                 :class="['p-2 rounded text-sm cursor-pointer truncate transition-colors', selectedLogFilename === log.filename ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-gray-100']">
+              <div class="truncate">{{ log.filename }}</div>
+              <div class="text-xs text-gray-500 font-normal">{{ (log.size / 1024).toFixed(2) }} KB</div>
+            </div>
+            <div v-if="logFiles.length === 0" class="text-sm text-gray-500">暂无日志文件</div>
+          </div>
+          <!-- Right side: log viewer -->
+          <div class="flex-1 bg-gray-950 text-gray-250 rounded-xl p-6 font-mono text-sm overflow-y-auto whitespace-pre-wrap select-text" style="color: #e2e8f0; background-color: #0f172a;">
+            {{ selectedLogContent }}
+          </div>
+        </div>
+
+        <!-- Sign-in running console -->
+        <div v-show="activeTab === 'run'" class="bg-gray-950 text-gray-250 rounded-xl p-6 font-mono text-sm h-[calc(100vh-270px)] flex flex-col justify-between" style="color: #e2e8f0; background-color: #0f172a;">
+          <div class="flex-1 overflow-y-auto mb-4 space-y-1 select-text">
+            <div v-for="(logLine, idx) in runOutput" :key="idx"
+                 :class="{'text-green-400': logLine.includes('SUCCESS'), 'text-red-400': logLine.includes('ERROR') || logLine.includes('fail') || logLine.includes('异常'), 'text-yellow-400': logLine.includes('WARNING')}">
+              {{ logLine }}
+            </div>
+          </div>
+          <div class="flex justify-end">
+            <button @click="activeTab = 'config'" class="bg-gray-800 text-white px-6 py-2.5 rounded-lg hover:bg-gray-700">
+              返回配置
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex-1 flex flex-col items-center justify-center text-gray-500" v-else>
+      <i class="fa-solid fa-users text-6xl mb-4"></i>
+      <p class="text-lg">请在左侧栏选择或创建一个签到账户以开始管理</p>
+    </div>
+
+    <!-- Create Account Modal -->
+    <div v-if="showCreateModal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
+      <div class="bg-white rounded-xl shadow-xl w-96 p-6 space-y-4">
+        <h3 class="text-lg font-bold text-gray-900">创建新签到子账户</h3>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">账户目录名 (拼音 / 标识)</label>
+          <input type="text" v-model="newAccountId" class="w-full border border-gray-300 rounded-lg p-2.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="例如: zhangsan">
+          <p class="text-xs text-gray-500 mt-1">此名称将作为 configs/ 目录下的子文件夹名称。</p>
+        </div>
+        <div class="flex space-x-3 pt-2">
+          <button @click="showCreateModal = false" class="flex-1 bg-gray-150 hover:bg-gray-200 text-gray-800 py-2.5 rounded-lg font-medium">取消</button>
+          <button @click="createAccount" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-medium">确认创建</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+    createApp({
+      data() {
+        return {
+          accounts: [],
+          selectedAccountId: null,
+          activeTab: 'config',
+          configData: null,
+          cookieData: '',
+          logFiles: [],
+          selectedLogContent: '',
+          selectedLogFilename: '',
+          runOutput: [],
+          isRunning: false,
+          showCreateModal: false,
+          newAccountId: '',
+          newAccountCopyMain: true,
+          errorMsg: '',
+          successMsg: ''
+        };
+      },
+      mounted() {
+        this.fetchAccounts();
+      },
+      methods: {
+        async fetchAccounts() {
+          try {
+            const res = await fetch('/api/accounts');
+            this.accounts = await res.json();
+            if (this.accounts.length > 0 && !this.selectedAccountId) {
+              this.selectAccount(this.accounts[0].id);
+            }
+          } catch (err) {
+            this.showError('加载账户列表失败');
+          }
+        },
+        async selectAccount(id) {
+          this.selectedAccountId = id;
+          this.activeTab = 'config';
+          this.configData = null;
+          this.cookieData = '';
+          this.logFiles = [];
+          this.selectedLogContent = '';
+          this.runOutput = [];
+          await this.fetchAccountConfig();
+        },
+        async fetchAccountConfig() {
+          try {
+            const res = await fetch(`/api/accounts/${this.selectedAccountId}`);
+            this.configData = await res.json();
+            // Safeguard nested default structures
+            if (!this.configData.bark) this.configData.bark = { device_key: '', device_token: '' };
+            if (!this.configData.wechat) this.configData.wechat = { user_id: '' };
+            if (!this.configData.notification_type) this.configData.notification_type = [];
+          } catch (err) {
+            this.showError('加载配置失败');
+          }
+        },
+        async saveConfig() {
+          try {
+            const res = await fetch(`/api/accounts/${this.selectedAccountId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(this.configData)
+            });
+            const data = await res.json();
+            if (res.ok) {
+              this.showSuccess('保存配置成功');
+              this.fetchAccounts();
+            } else {
+              this.showError(data.detail || '保存配置失败');
+            }
+          } catch (err) {
+            this.showError('保存配置失败');
+          }
+        },
+        async fetchCookies() {
+          try {
+            const res = await fetch(`/api/accounts/${this.selectedAccountId}/cookies`);
+            const data = await res.json();
+            this.cookieData = data.cookies;
+          } catch (err) {
+            this.showError('加载 Cookie 失败');
+          }
+        },
+        async saveCookies() {
+          try {
+            const res = await fetch(`/api/accounts/${this.selectedAccountId}/cookies`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ cookies: this.cookieData })
+            });
+            const data = await res.json();
+            if (res.ok) {
+              this.showSuccess('保存 Cookie 成功');
+            } else {
+              this.showError(data.detail || '保存 Cookie 失败');
+            }
+          } catch (err) {
+            this.showError('保存 Cookie 失败');
+          }
+        },
+        async fetchLogs() {
+          try {
+            const res = await fetch(`/api/accounts/${this.selectedAccountId}/logs`);
+            this.logFiles = await res.json();
+            if (this.logFiles.length > 0) {
+              this.viewLogContent(this.logFiles[0].filename);
+            } else {
+              this.selectedLogContent = '暂无日志记录';
+            }
+          } catch (err) {
+            this.showError('加载日志列表失败');
+          }
+        },
+        async viewLogContent(filename) {
+          this.selectedLogFilename = filename;
+          try {
+            const res = await fetch(`/api/accounts/${this.selectedAccountId}/logs/${filename}`);
+            const data = await res.json();
+            this.selectedLogContent = data.content;
+          } catch (err) {
+            this.showError('加载日志内容失败');
+          }
+        },
+        async runSignIn() {
+          this.activeTab = 'run';
+          this.isRunning = true;
+          this.runOutput = ['[System] 正在启动打卡流程...'];
+          try {
+            const res = await fetch(`/api/accounts/${this.selectedAccountId}/run`, { method: 'POST' });
+            const data = await res.json();
+            this.runOutput = data.logs;
+            if (data.success) {
+              this.runOutput.push('[System] 打卡执行成功！');
+              this.showSuccess('打卡成功');
+            } else {
+              this.runOutput.push('[System] 打卡执行失败。');
+              this.showError('打卡失败，请查看控制台日志');
+            }
+          } catch (err) {
+            this.runOutput.push('[System] 执行异常。');
+            this.showError('执行异常，请查看后台控制台');
+          } finally {
+            this.isRunning = false;
+          }
+        },
+        async createAccount() {
+          if (!this.newAccountId.trim()) {
+            this.showError('账户 ID 不能为空');
+            return;
+          }
+          if (!/^[a-zA-Z0-9_\-]+$/.test(this.newAccountId)) {
+            this.showError('仅允许字母、数字、下划线及横杠');
+            return;
+          }
+          try {
+            let baseConfig = {};
+            // Fetch default template from config.example.json directly
+            try {
+              const exampleRes = await fetch('/config.example.json');
+              if (exampleRes.ok) {
+                baseConfig = await exampleRes.json();
+              } else {
+                throw new Error();
+              }
+            } catch (e) {
+              // Fallback if example file is missing
+              baseConfig = {
+                enable: true,
+                username: '',
+                password: '',
+                host: 'hbkjzy.qmx.chaoxing.com',
+                address: '',
+                lat: 0.0,
+                lng: 0.0,
+                device: 'iPhone 12',
+                enable_notification: false,
+                notification_type: [],
+                bark: { device_key: '', device_token: '' },
+                wechat: { user_id: '' }
+              };
+            }
+
+            // Cleanup confidential credentials and configure types properly
+            baseConfig.username = '';
+            baseConfig.password = '';
+            baseConfig.enable_notification = false;
+            baseConfig.bark = { device_key: '', device_token: '' };
+            baseConfig.wechat = { user_id: '' };
+
+            // Ensure notification_type is always an Array/List[str]
+            if (baseConfig.notification_type) {
+              if (typeof baseConfig.notification_type === 'string') {
+                baseConfig.notification_type = [baseConfig.notification_type];
+              } else if (!Array.isArray(baseConfig.notification_type)) {
+                baseConfig.notification_type = [];
+              }
+            } else {
+              baseConfig.notification_type = [];
+            }
+
+            // Remove CLI-only option
+            delete baseConfig.only_main_notification;
+
+            const res = await fetch('/api/accounts', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: this.newAccountId, config: baseConfig })
+            });
+            const data = await res.json();
+            if (res.ok) {
+              this.showSuccess(`账户 ${this.newAccountId} 创建成功`);
+              this.showCreateModal = false;
+              const newId = this.newAccountId;
+              this.newAccountId = '';
+              await this.fetchAccounts();
+              this.selectAccount(newId);
+            } else {
+              this.showError(data.detail || '创建账户失败');
+            }
+          } catch (err) {
+            this.showError('创建账户失败');
+          }
+        },
+        async deleteAccount() {
+          if (this.selectedAccountId === 'main') return;
+          if (!confirm(`确认要删除子账户 ${this.selectedAccountId} 吗？此操作不可逆。`)) return;
+          try {
+            const res = await fetch(`/api/accounts/${this.selectedAccountId}`, { method: 'DELETE' });
+            if (res.ok) {
+              this.showSuccess('账户删除成功');
+              this.selectedAccountId = null;
+              this.configData = null;
+              await this.fetchAccounts();
+            } else {
+              const data = await res.json();
+              this.showError(data.detail || '删除账户失败');
+            }
+          } catch (err) {
+            this.showError('删除账户失败');
+          }
+        },
+        showSuccess(msg) {
+          this.successMsg = msg;
+          setTimeout(() => this.successMsg = '', 3000);
+        },
+        showError(msg) {
+          this.errorMsg = msg;
+          setTimeout(() => this.errorMsg = '', 4000);
+        }
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
