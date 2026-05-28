@@ -94,7 +94,7 @@ def run_sign_in(config_dict: dict, cookies_path: str, log_dir: str) -> bool:
             photo_obj = _prepare_photo_object(session, batch, photo)
         except Exception as e:
             logger.error(f"上传照片失败: {e}")
-            send_notification("error", f"上传照片失败: {e}")
+            send_notification(f"上传照片失败: {e}")
             return False
 
         # 8. 构造签到明文并提交打卡

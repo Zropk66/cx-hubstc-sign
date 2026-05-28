@@ -1,14 +1,18 @@
 # -*- coding: utf-8 -*-
 import re
+from typing import Union, Any
 import requests
 from loguru import logger
 from . import config
 
 
-def _get_wechat_credentials(args, has_args) -> tuple[str, str, str, str]:
+def _get_wechat_credentials(args, has_args) -> tuple[str, str, str | Any, dict[str, str]]:
     app_id = "wx2aae0401b2d24931"
     app_secret = "447916ef9efbef70867646f78ae9dd07"
-    template_id = "ZqwbIFo19egPmyPnIYOo9LDZAREqUioIeUJ0eUEYUks"
+    template_ids = {
+        "with_status": "DSDf1Qnt2to66t3epzCs5bHjm5czjM3gcWxn1Ujxx_s",
+        "only_info": "xZbMQQlcZjKTxz3d6xo5Z6byKt3_DwWmy3Ad46yUAn4"
+    }
 
     user_id = getattr(args, "wechat_userid", None) if has_args else None
 
@@ -16,33 +20,46 @@ def _get_wechat_credentials(args, has_args) -> tuple[str, str, str, str]:
     if not user_id and cfg and "wechat" in cfg and isinstance(cfg["wechat"], dict):
         user_id = cfg["wechat"].get("user_id")
 
-    return app_id, app_secret, user_id or "", template_id
+    return app_id, app_secret, user_id or "", template_ids
 
 
-def send_wechat_notification(status: str, content: str = '') -> bool:
+def send_wechat_notification(content: Union[str, dict] = '') -> bool:
     """
     通过微信测试号模板消息推送状态
     https://mp.weixin.qq.com/debug/cgi-bin/sandboxinfo?action=showinfo&t=sandbox/index
     """
     args = config.args_global
     has_args = args is not None and type(args).__name__ not in ('Mock', 'MagicMock', 'NonCallableMagicMock')
-    app_id, app_secret, user_id, template_id = _get_wechat_credentials(args, has_args)
+    app_id, app_secret, user_id, template_ids = _get_wechat_credentials(args, has_args)
 
     if not user_id:
         logger.warning("未配置微信 user_id，跳过微信推送")
         return False
 
-    status_map = {
-        "success": "✅",
-        "error": "❌",
-        "info": "🔔"
-    }
-    emoji = status_map.get(status.lower() if hasattr(status, "lower") else str(status), "🔔")
-    content = f"{emoji} {content}" if content else f"{emoji} 暂无详情"
+    if isinstance(content, dict):
+        payload_data = {
+            "content": {
+                "value": content.get("content", "暂无详情"),
+                "color": "#173177"
+            },
+            "status": {
+                "value": content.get("status", "暂无详情"),
+                "color": "#173177"
+            }
+        }
+        template_id = template_ids.get("with_status")
+    else:
+        content_str = content or "暂无详情"
+        payload_data = {
+            "content": {
+                "value": content_str,
+                "color": "#173177"
+            }
+        }
+        template_id = template_ids.get("only_info")
 
     try:
         from .client import log_http_details
-        # 1. 获取 access_token
         token_url = f"https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={app_id}&secret={app_secret}"
         token_resp = requests.get(token_url, timeout=10)
         log_http_details("GET", token_url, resp=token_resp)
@@ -53,18 +70,12 @@ def send_wechat_notification(status: str, content: str = '') -> bool:
             logger.error(f"获取微信 access_token 失败: {token_data.get('errmsg', '未知错误')}")
             return False
 
-        # 2. 发送模板消息
         send_url = f"https://api.weixin.qq.com/cgi-bin/message/template/send?access_token={access_token}"
 
         payload = {
             "touser": user_id,
             "template_id": template_id,
-            "data": {
-                "content": {
-                    "value": content,
-                    "color": "#173177"
-                }
-            }
+            "data": payload_data
         }
 
         resp = requests.post(send_url, json=payload, timeout=10)
@@ -96,7 +107,7 @@ def _get_bark_credentials(args, has_args) -> tuple[str, str]:
     return bark_device_key or "", bark_device_token or ""
 
 
-def send_bark_notification(status: str, content: str = '') -> bool:
+def send_bark_notification(content: Union[str, dict] = '') -> bool:
     """
     通过 Bark 服务推送消息，支持设备 Token 注册重试机制
     """
@@ -108,21 +119,21 @@ def send_bark_notification(status: str, content: str = '') -> bool:
         logger.info("未配置推送密钥 (bark_device_key) 和设备 Token (bark_device_token)，跳过推送")
         return False
 
-    status_map = {
-        "success": "✅",
-        "error": "❌",
-        "info": "🔔"
-    }
-    emoji = status_map.get(status.lower() if hasattr(status, "lower") else str(status), "🔔")
-    title = "寝室定位打卡"
-    body = f"{emoji} {content}" if content else f"{emoji} 暂无详情"
+    if isinstance(content, dict):
+        content_val = content.get("content", "")
+        status_val = content.get("status", "")
+        content = f"信息：{content_val}\n状态：{status_val}"
+    else:
+        content = f"信息：{content}"
+
+    body = content or "暂无详情"
 
     def send(key):
         from .client import log_http_details
         url = "https://api.day.app/push"
         payload = {
             "device_key": key,
-            "title": title,
+            "title": "寝室定位打卡",
             "body": body,
             "group": "超星自动签到"
         }
@@ -163,7 +174,7 @@ def send_bark_notification(status: str, content: str = '') -> bool:
     return False
 
 
-def send_notification(status: str, content: str = ''):
+def send_notification(content: Union[str, dict] = ''):
     """
     根据配置分发消息通知。
     """
@@ -189,6 +200,12 @@ def send_notification(status: str, content: str = ''):
             logger.info("已启用只推送主账号功能，当前为子账号，跳过推送")
             return
 
+    if isinstance(content, dict) and not content.get("status"):
+        if "content" in content:
+            content = content["content"]
+        else:
+            content = str(content)
+
     notif_type = config.resolve_value(
         getattr(args, "notification_type", None) if has_args else None,
         "notification_type",
@@ -198,7 +215,6 @@ def send_notification(status: str, content: str = ''):
     if not notif_type:
         raise ValueError("启用了推送通知，但缺失关键配置: notification_type (请在命令行参数或 config.json 中配置)")
 
-    # 支持多通道推送 (以列表、逗号/空格分隔的字符串表示)
     channels = []
     if isinstance(notif_type, list):
         channels = [str(c).strip().lower() for c in notif_type]
@@ -209,8 +225,8 @@ def send_notification(status: str, content: str = ''):
 
     for channel in channels:
         if channel == "bark":
-            send_bark_notification(status, content)
+            send_bark_notification(content)
         elif channel in ("wechat", "wechat_template"):
-            send_wechat_notification(status, content)
+            send_wechat_notification(content)
         else:
             logger.warning(f"不支持的推送软件类型: {channel}")

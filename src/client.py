@@ -283,8 +283,10 @@ def _ensure_authenticated_session(cookies_path: str, config_dict: dict) -> reque
     """
     args = config.args_global
     has_args = args is not None and type(args).__name__ not in ('Mock', 'MagicMock', 'NonCallableMagicMock')
-    username = config.resolve_value(getattr(args, "username", None) if has_args else None, "username", "", config_dict=config_dict)
-    password = config.resolve_value(getattr(args, "password", None) if has_args else None, "password", "", config_dict=config_dict)
+    username = config.resolve_value(getattr(args, "username", None) if has_args else None, "username", "",
+                                    config_dict=config_dict)
+    password = config.resolve_value(getattr(args, "password", None) if has_args else None, "password", "",
+                                    config_dict=config_dict)
 
     cookies = load_cookies(cookies_path)
     if not cookies or not validate_cookies(cookies):
@@ -293,7 +295,7 @@ def _ensure_authenticated_session(cookies_path: str, config_dict: dict) -> reque
             if os.environ.get("GITHUB_ACTIONS") or os.environ.get("CI"):
                 logger.error(
                     "检测到在 GitHub Actions 环境中运行，但未检测到账号或密码配置！请在 config.json 中配置 username 和 password。")
-                send_notification("error", "GitHub Actions 缺少账号密码配置")
+                send_notification("GitHub Actions 缺少账号密码配置")
                 return None
             username = input("请输入手机号/用户名: ").strip()
             password = input("请输入密码: ").strip()
@@ -303,7 +305,7 @@ def _ensure_authenticated_session(cookies_path: str, config_dict: dict) -> reque
             cookies = load_cookies(cookies_path)
         else:
             logger.error("登录失败，无法继续签到。")
-            send_notification("error", "登录失败，请检查账号密码")
+            send_notification("登录失败，请检查账号密码")
             return None
 
     logger.success(f"成功加载有效 Cookie。UID: {cookies.get('UID', '未知')}")
@@ -329,7 +331,7 @@ def _exchange_erm_token(session: requests.Session, host: str, mobile_v: str) -> 
         resp_data = resp.json()
         if not resp_data.get("success"):
             logger.error(f"Token 交换失败: {resp_data}")
-            send_notification("error", f"Token 交换失败: {resp_data.get('msg', '未知错误')}")
+            send_notification(f"Token 交换失败: {resp_data.get('msg', '未知错误')}")
             return None
 
         token = resp_data["data"]["token"]
@@ -337,7 +339,7 @@ def _exchange_erm_token(session: requests.Session, host: str, mobile_v: str) -> 
         return token
     except Exception as e:
         logger.error(f"Token 交换过程中出错: {e}")
-        send_notification("error", f"Token 交换异常: {e}")
+        send_notification(f"Token 交换异常: {e}")
         return None
 
 
@@ -356,7 +358,7 @@ def _get_student_role(session: requests.Session, host: str, mobile_v: str) -> st
         resp_data = resp.json()
         if not resp_data.get("success"):
             logger.error(f"获取角色信息失败: {resp_data}")
-            send_notification("error", "获取学生角色信息失败")
+            send_notification("获取学生角色信息失败")
             return None
 
         current_role_id = resp_data["data"]["currentRoleId"]
@@ -364,7 +366,7 @@ def _get_student_role(session: requests.Session, host: str, mobile_v: str) -> st
         return current_role_id
     except Exception as e:
         logger.error(f"获取角色信息时出错: {e}")
-        send_notification("error", f"获取角色信息异常: {e}")
+        send_notification(f"获取角色信息异常: {e}")
         return None
 
 
@@ -386,10 +388,10 @@ def _fetch_sign_metadata(session: requests.Session, host: str, mobile_v: str) ->
         if not resp_data.get("success"):
             if str(resp_data.get("code"))[:3] == "200":
                 logger.info(resp_data.get("message"))
-                send_notification("info", resp_data.get("message"))
+                send_notification(resp_data.get("message"))
                 return None, None, "success"
             else:
-                send_notification("error", "获取签到元数据失败")
+                send_notification("获取签到元数据失败")
                 return None, None, "fail"
 
         meta_data = resp_data.get("data", {})
@@ -397,13 +399,17 @@ def _fetch_sign_metadata(session: requests.Session, host: str, mobile_v: str) ->
         cqrq = meta_data.get("cqrq", datetime.date.today().strftime("%Y-%m-%d"))
 
         if not batch:
-            logger.info("当前没有处于活动状态的签到批次。")
-            msg = "当前没有活动状态的签到批次。"
+            msg = "当前没有处于活动状态的签到批次。"
+            logger.info(msg)
             if meta_data.get("result") and meta_data.get("result", {}).get("jg"):
+                status = meta_data['result']['jg'] == "1"
                 logger.info(
                     f"提示: 今日已签到状态为: {meta_data['result']['jg']} (时间: {meta_data['result'].get('sj')})")
-                msg += f"\n今日已签到状态: {meta_data['result']['jg']} (时间: {meta_data['result'].get('sj')})"
-            send_notification("info", msg)
+                msg = {
+                    "content": "今日已签到",
+                    "status": f"成功 (时间: {meta_data['result'].get('sj')})" if status else "未知"
+                }
+            send_notification(msg)
             return None, cqrq, "success"
 
         logger.success("发现进行中的签到批次:")
@@ -416,7 +422,7 @@ def _fetch_sign_metadata(session: requests.Session, host: str, mobile_v: str) ->
         return batch, cqrq, None
     except Exception as e:
         logger.error(f"获取签到元数据时出错: {e}")
-        send_notification("error", f"获取签到元数据异常: {e}")
+        send_notification(f"获取签到元数据异常: {e}")
         return None, None, "fail"
 
 
@@ -542,24 +548,28 @@ def _submit_clock_in(session: requests.Session, host: str, mobile_v: str, punch_
             try:
                 resp_json = resp.json()
                 if resp_json.get("success") or resp_json.get("code") == 20000:
-                    msg = f"签到已提交！\n反馈: {resp_json.get('msg') or resp_json.get('message') or '成功'}"
-                    logger.success(msg)
-                    send_notification("success", msg)
+                    feedback = resp_json.get('msg') or resp_json.get('message') or '成功'
+                    logger.success(f"签到已提交！")
+                    logger.success(f"状态：: {feedback}")
+                    send_notification({
+                        "status": "签到已提交！",
+                        "content": feedback
+                    })
                     return True
                 else:
                     msg = f"签到提交失败: {resp_json.get('msg') or resp_json.get('message') or resp.text}"
                     logger.error(msg)
-                    send_notification("error", msg)
+                    send_notification(msg)
                     return False
             except Exception:
                 logger.exception("解析打卡返回结果异常")
-                send_notification("info", f"HTTP {resp.status_code}\n打卡请求已发出 (无法解析返回结果)")
+                send_notification(f"HTTP {resp.status_code}\n打卡请求已发出 (无法解析返回结果)")
                 return False
         else:
             logger.error(f"HTTP 响应状态码异常: {resp.status_code}，响应内容: {resp.text}")
-            send_notification("error", f"HTTP {resp.status_code}\n{resp.text[:100]}")
+            send_notification(f"HTTP {resp.status_code}\n{resp.text[:100]}")
             return False
     except Exception as e:
         logger.error(f"提交打卡请求时发生错误: {e}")
-        send_notification("error", f"打卡提交异常: {e}")
+        send_notification(f"打卡提交异常: {e}")
         return False

@@ -77,7 +77,6 @@ def main():
         logger.debug(f"GitHub Run ID: {os.environ.get('GITHUB_RUN_ID')}")
     logger.debug("=====================================")
 
-    # 如果有命令行参数覆盖，则运行单账户模式
     if has_cli_overrides(args):
         logger.info("检测到命令行覆盖参数，使用单账户模式运行")
         config_data = {"_is_main_account": True}
@@ -96,13 +95,12 @@ def main():
             logger.info("当前账户已配置为禁用 (enable: false)，跳过该账户")
             return
 
-        # 检查过期时间
         expired, expires_str = is_config_expired(config_data)
         if expired:
             logger.warning(f"当前主账户已于 {expires_str} 过期，跳过打卡流程。")
             config.config_global = config_data
             try:
-                send_notification("error", f"账户 主账户 已于 {expires_str} 过期，已停止打卡")
+                send_notification(f"账户 主账户 已于 {expires_str} 过期，已停止打卡")
             except Exception as ne:
                 logger.error(f"发送过期通知失败: {ne}")
             return
@@ -113,7 +111,6 @@ def main():
 
     accounts_to_run = []
 
-    # 1. 检查根目录 config.json (主账户)
     config_path = os.path.join(os.getcwd(), "config.json")
     if os.path.exists(config_path):
         try:
@@ -125,7 +122,6 @@ def main():
         except Exception as e:
             logger.warning(f"读取根目录 config.json 失败: {e}")
 
-    # 2. 检查 configs/ 目录下的子账户配置
     configs_dir = Path(os.getcwd()) / "configs"
     if configs_dir.is_dir():
         subdirs = sorted([d for d in configs_dir.iterdir() if d.is_dir()], key=lambda x: x.name)
@@ -137,7 +133,7 @@ def main():
                     sub_config["_config_path"] = str(sub_config_path)
                     sub_config["_is_main_account"] = False
                     sub_cookies_path = config.resolve_value(None, "cookies", str(subdir / "cookies.txt"),
-                                                             config_dict=sub_config)
+                                                            config_dict=sub_config)
                     sub_log_dir = str(subdir / "logs")
                     accounts_to_run.append((sub_config, sub_cookies_path, sub_log_dir, f"子账户({subdir.name})"))
                 except Exception as e:
@@ -160,7 +156,7 @@ def main():
             logger.warning(f"[{i + 1}/{len(accounts_to_run)}] 账户 {account_name} 已于 {expires_str} 过期，跳过该账户")
             config.config_global = config_data
             try:
-                send_notification("error", f"账户 {account_name} 已于 {expires_str} 过期，已停止打卡")
+                send_notification(f"账户 {account_name} 已于 {expires_str} 过期，已停止打卡")
             except Exception as ne:
                 logger.error(f"发送过期通知失败: {ne}")
             continue
@@ -171,7 +167,7 @@ def main():
             run_sign_in(config_data, cookies_path, log_dir)
         except Exception as e:
             logger.error(f"账户 {account_name} 运行中发生未捕获异常: {e}")
-            send_notification("error", f"账户 {account_name} 运行异常: {e}")
+            send_notification(f"账户 {account_name} 运行异常: {e}")
 
         if i < len(accounts_to_run) - 1:
             logger.info("等待 1 秒后执行下一个账户...")
