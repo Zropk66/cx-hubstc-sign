@@ -10,8 +10,8 @@ def _get_wechat_credentials(args, has_args) -> tuple[str, str, str | Any, dict[s
     app_id = "wx2aae0401b2d24931"
     app_secret = "447916ef9efbef70867646f78ae9dd07"
     template_ids = {
-        "with_status": "DSDf1Qnt2to66t3epzCs5bHjm5czjM3gcWxn1Ujxx_s",
-        "only_info": "xZbMQQlcZjKTxz3d6xo5Z6byKt3_DwWmy3Ad46yUAn4"
+        "full": "DSDf1Qnt2to66t3epzCs5bHjm5czjM3gcWxn1Ujxx_s",
+        "simple": "xZbMQQlcZjKTxz3d6xo5Z6byKt3_DwWmy3Ad46yUAn4"
     }
 
     user_id = getattr(args, "wechat_userid", None) if has_args else None
@@ -47,7 +47,7 @@ def send_wechat_notification(content: Union[str, dict] = '') -> bool:
                 "color": "#173177"
             }
         }
-        template_id = template_ids.get("with_status")
+        template_id = template_ids.get("full")
     else:
         content_str = content or "暂无详情"
         payload_data = {
@@ -56,7 +56,7 @@ def send_wechat_notification(content: Union[str, dict] = '') -> bool:
                 "color": "#173177"
             }
         }
-        template_id = template_ids.get("only_info")
+        template_id = template_ids.get("simple")
 
     try:
         from .client import log_http_details

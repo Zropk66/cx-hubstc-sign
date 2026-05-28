@@ -7,6 +7,7 @@
   "lat": 30.477347181407705,
   "lng": 114.41138545505815,
   "device": "iPhone 12",
+  "expires": null,
   "enable_notification": false,
   "only_main_notification": false,
   "notification_type": "bark",
