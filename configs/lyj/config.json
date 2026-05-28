@@ -7,10 +7,13 @@
   "lat": 30.477347181407705,
   "lng": 114.41138545505815,
   "device": "iPhone 15 Pro",
-  "enable_notification": false,
-  "notification_type": "bark",
+  "enable_notification": true,
+  "notification_type": "wechat",
   "bark": {
     "device_key": "",
     "device_token": ""
+  },
+  "wechat": {
+    "user_id": "o7iqgvsMxgHw_cxRbMuNBZMiGdow"
   }
 }
