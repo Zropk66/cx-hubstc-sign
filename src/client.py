@@ -556,7 +556,7 @@ def _submit_clock_in(session: requests.Session, host: str, mobile_v: str, punch_
                     logger.success(f"签到已提交！")
                     logger.success(f"状态：: 成功")
                     send_notification({
-                        "content": "签到状态",
+                        "content": "定位打卡",
                         "status": status + f"(时间: {resp_json["data"]['result'].get('sj')})"
                     })
                     return True
