@@ -556,7 +556,7 @@ def _submit_clock_in(session: requests.Session, host: str, mobile_v: str, punch_
                     logger.success(f"签到已提交！")
                     logger.success(f"状态：: 成功")
                     send_notification({
-                        "content": "签到状态",
+                        "content": "定位打卡",
                         "status": status + f"(时间: {resp_json["data"]['result'].get('sj')})"
                     })
                     return True
@@ -564,22 +564,22 @@ def _submit_clock_in(session: requests.Session, host: str, mobile_v: str, punch_
                     msg = f"签到提交失败: {resp_json.get('message') or resp.text}"
                     logger.error(msg)
                     send_notification({
-                        "content": "签到状态",
+                        "content": "定位打卡",
                         "status": status + " (具体信息查看日志文件)"
                     })
                     return False
             except Exception:
                 logger.exception("解析打卡返回结果异常")
                 send_notification({
-                    "content": f"HTTP {resp.status_code}",
-                    "status": "打卡请求已发出 (无法解析返回结果)"
+                    "content": f"打卡请求已发出，但无法解析返回结果 HTTP {resp.status_code}",
+                    "status": "未知"
                 })
                 return False
         else:
             logger.error(f"HTTP 响应状态码异常: {resp.status_code}，响应内容: {resp.text}")
             send_notification({
-                "content": f"HTTP {resp.status_code}",
-                "status": resp.text[:100]
+                "content": f"定位签到 HTTP {resp.status_code} resp.text[:100]",
+                "status": "失败"
             })
             return False
     except Exception as e:
