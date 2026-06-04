@@ -523,7 +523,7 @@ def _submit_clock_in(session: requests.Session, host: str, mobile_v: str, punch_
     加密签到参数，提交打卡请求，并处理返回结果及通知
     """
     import json
-    logger.debug(f"签到明文载荷: {json.dumps(punch_params, ensure_ascii=False, indent=2)}")
+    logger.debug(f"签到明文载荷: {punch_params}")
 
     plaintext_str = json.dumps(punch_params, ensure_ascii=False, separators=(',', ':'))
     encrypted_hex = encrypt_des_hex(plaintext_str, "QRCODENC")
