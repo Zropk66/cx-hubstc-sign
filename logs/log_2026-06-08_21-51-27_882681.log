@@ -1,0 +1,54 @@
+2026-06-08 21:51:27.886 | INFO    | src.core:run_sign_in:57 - ============================================================
+2026-06-08 21:51:27.886 | INFO    | src.core:run_sign_in:58 -                           定位打卡
+2026-06-08 21:51:27.886 | INFO    | src.core:run_sign_in:59 - ============================================================
+2026-06-08 21:51:27.887 | DEBUG   | src.client:validate_cookies:122 - 开始校验 Cookie...
+2026-06-08 21:51:29.042 | SUCCESS | src.client:validate_cookies:147 - Cookie 校验成功: 用户处于登录状态
+2026-06-08 21:51:29.042 | SUCCESS | src.client:_ensure_authenticated_session:311 - 成功加载有效 Cookie。UID: 410430135
+2026-06-08 21:51:32.065 | INFO    | src.client:fetch_mobile_version:111 - 动态获取到 mobile 页面版本: 8f149328d
+2026-06-08 21:51:32.066 | INFO    | src.client:_exchange_erm_token:321 - 正在交换机构 Token (ermLogin)...
+2026-06-08 21:51:32.785 | DEBUG   | src.client:log_http_details:43 - === HTTP Request Details ===
+2026-06-08 21:51:32.785 | DEBUG   | src.client:log_http_details:44 - Method: GET | URL: https://hbkjzy.qmx.chaoxing.com/pedestal/user/ermLogin
+2026-06-08 21:51:32.785 | DEBUG   | src.client:log_http_details:46 - Request Headers: {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 (schild:c69a8a0f7107e385cfaa3a45194f99ef) (device:iPhone13,2) Language/zh-Hant com.ssreader.ChaoXingStudy/ChaoXingStudy_3_6.7.3_ios_phone_202602111700_314 (@Kalimdor)_14898949611323310882', 'Accept': 'application/json, text/plain, */*', 'Accept-Language': 'zh-CN,zh-Hans;q=0.9', 'Accept-Encoding': 'gzip, deflate, br', 'Connection': 'keep-alive', 'Referer': 'https://hbkjzy.qmx.chaoxing.com/mobile/?v=8f149328d'}
+2026-06-08 21:51:32.785 | DEBUG   | src.client:log_http_details:51 - === HTTP Response Details ===
+2026-06-08 21:51:32.785 | DEBUG   | src.client:log_http_details:52 - Status Code: 200
+2026-06-08 21:51:32.785 | DEBUG   | src.client:log_http_details:53 - Response Headers: {'Date': 'Mon, 08 Jun 2026 13:51:32 GMT', 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked', 'Connection': 'keep-alive', 'Vary': 'Origin, Access-Control-Request-Method, Access-Control-Request-Headers', 'X-Content-Type-Options': 'nosniff', 'X-XSS-Protection': '1; mode=block', 'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0', 'Set-Cookie': 'route=0c6bec89aa61d0bf4083667e6ccb4616; Path=/'}
+2026-06-08 21:51:32.785 | DEBUG   | src.client:log_http_details:54 - Response Body: {"success":true,"code":20000,"message":"成功","data":{"token":"eyJhbGciOiJIUzUxMiJ9.eyJsb2dpbl91c2VyX2tleSI6IjFjMTU2NTAxLTJlZWYtNDgyZi05OWJkLTYyMzc5YThmNmVmYyJ9.BItKCuuqF8iwzezu6irIRaR0UeVzY-qv3UEZ0OxdANS8KNjSB2GXoTFFeZ4qGQUkOSn2XcP3T4XpXLPcO4iDDg"}}
+2026-06-08 21:51:32.785 | DEBUG   | src.client:log_http_details:55 - =============================
+2026-06-08 21:51:32.785 | SUCCESS | src.client:_exchange_erm_token:341 - 成功获取 Token: eyJhbGciOiJIUzU...
+2026-06-08 21:51:32.786 | INFO    | src.client:_get_student_role:353 - 正在获取学生角色信息 (getInfox)...
+2026-06-08 21:51:33.023 | SUCCESS | src.client:_get_student_role:368 - 成功获取当前角色 ID: 4204d3304f78f805c890fa1b3eb10aa9
+2026-06-08 21:51:33.023 | INFO    | src.client:_fetch_sign_metadata:381 - 正在拉取签到批次与规则数据...
+2026-06-08 21:51:34.056 | DEBUG   | src.client:log_http_details:43 - === HTTP Request Details ===
+2026-06-08 21:51:34.056 | DEBUG   | src.client:log_http_details:44 - Method: GET | URL: https://hbkjzy.qmx.chaoxing.com/housemaster/sg/roomCheckPunch/getStudentInfo?cqfs=1
+2026-06-08 21:51:34.056 | DEBUG   | src.client:log_http_details:46 - Request Headers: {'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 (schild:c69a8a0f7107e385cfaa3a45194f99ef) (device:iPhone13,2) Language/zh-Hant com.ssreader.ChaoXingStudy/ChaoXingStudy_3_6.7.3_ios_phone_202602111700_314 (@Kalimdor)_14898949611323310882', 'Accept': 'application/json, text/plain, */*', 'Accept-Language': 'zh-CN,zh-Hans;q=0.9', 'Accept-Encoding': 'gzip, deflate, br', 'Connection': 'keep-alive', 'Referer': 'https://hbkjzy.qmx.chaoxing.com/mobile/?v=8f149328d'}
+2026-06-08 21:51:34.056 | DEBUG   | src.client:log_http_details:51 - === HTTP Response Details ===
+2026-06-08 21:51:34.056 | DEBUG   | src.client:log_http_details:52 - Status Code: 200
+2026-06-08 21:51:34.056 | DEBUG   | src.client:log_http_details:53 - Response Headers: {'Date': 'Mon, 08 Jun 2026 13:51:33 GMT', 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked', 'Connection': 'keep-alive', 'Vary': 'Origin, Access-Control-Request-Method, Access-Control-Request-Headers', 'X-Content-Type-Options': 'nosniff', 'X-XSS-Protection': '1; mode=block', 'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0', 'Set-Cookie': 'route=b1c2a11131f3a8121257834d5d90d09a; Path=/'}
+2026-06-08 21:51:34.056 | DEBUG   | src.client:log_http_details:54 - Response Body: {"success":false,"code":20001,"message":"今日无需打卡","data":{}}
+2026-06-08 21:51:34.056 | DEBUG   | src.client:log_http_details:55 - =============================
+2026-06-08 21:51:34.056 | INFO    | src.client:_fetch_sign_metadata:393 - 今日无需打卡
+2026-06-08 21:51:35.045 | DEBUG   | src.client:log_http_details:43 - === HTTP Request Details ===
+2026-06-08 21:51:35.045 | DEBUG   | src.client:log_http_details:44 - Method: POST | URL: https://api.day.app/push
+2026-06-08 21:51:35.045 | DEBUG   | src.client:log_http_details:48 - Request Body: {'device_key': '4BQcuEEXvfQvtDQiiwXEGU', 'title': '寝室定位打卡', 'body': '信息：今日无需打卡', 'group': '超星自动签到'}
+2026-06-08 21:51:35.045 | DEBUG   | src.client:log_http_details:51 - === HTTP Response Details ===
+2026-06-08 21:51:35.045 | DEBUG   | src.client:log_http_details:52 - Status Code: 200
+2026-06-08 21:51:35.045 | DEBUG   | src.client:log_http_details:53 - Response Headers: {'Server': 'nginx/1.18.0 (Ubuntu)', 'Date': 'Mon, 08 Jun 2026 13:51:34 GMT', 'Content-Type': 'application/json', 'Content-Length': '55', 'Connection': 'keep-alive', 'Access-Control-Allow-Origin': '*'}
+2026-06-08 21:51:35.045 | DEBUG   | src.client:log_http_details:54 - Response Body: {"code":200,"message":"success","timestamp":1780926694}
+2026-06-08 21:51:35.045 | DEBUG   | src.client:log_http_details:55 - =============================
+2026-06-08 21:51:35.046 | SUCCESS | src.notifier:send_bark_notification:149 - Bark 消息推送成功
+2026-06-08 21:51:35.851 | DEBUG   | src.client:log_http_details:43 - === HTTP Request Details ===
+2026-06-08 21:51:35.851 | DEBUG   | src.client:log_http_details:44 - Method: GET | URL: https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=wx2aae0401b2d24931&secret=447916ef9efbef70867646f78ae9dd07
+2026-06-08 21:51:35.851 | DEBUG   | src.client:log_http_details:51 - === HTTP Response Details ===
+2026-06-08 21:51:35.851 | DEBUG   | src.client:log_http_details:52 - Status Code: 200
+2026-06-08 21:51:35.851 | DEBUG   | src.client:log_http_details:53 - Response Headers: {'Connection': 'keep-alive', 'Content-Type': 'application/json; encoding=utf-8', 'Date': 'Mon, 08 Jun 2026 13:51:35 GMT', 'Content-Length': '174'}
+2026-06-08 21:51:35.851 | DEBUG   | src.client:log_http_details:54 - Response Body: {"access_token":"104_WsdvuvV-QhQpVhau0rN6_zCn-iXN9GM5ObIaZ8gKoPi08oXMS6K_PfPBKD39KigPBQGGf9eoo7qZ41LQCzBP3DFvJ1fmYd2_13xnAgJeBxUJGnnsG8fCwOQCc6UPLKgADAHDC","expires_in":7200}
+2026-06-08 21:51:35.851 | DEBUG   | src.client:log_http_details:55 - =============================
+2026-06-08 21:51:37.046 | DEBUG   | src.client:log_http_details:43 - === HTTP Request Details ===
+2026-06-08 21:51:37.046 | DEBUG   | src.client:log_http_details:44 - Method: POST | URL: https://api.weixin.qq.com/cgi-bin/message/template/send?access_token=104_WsdvuvV-QhQpVhau0rN6_zCn-iXN9GM5ObIaZ8gKoPi08oXMS6K_PfPBKD39KigPBQGGf9eoo7qZ41LQCzBP3DFvJ1fmYd2_13xnAgJeBxUJGnnsG8fCwOQCc6UPLKgADAHDC
+2026-06-08 21:51:37.046 | DEBUG   | src.client:log_http_details:48 - Request Body: {'touser': 'o7iqgvsJbAKi_x9euYo8Pz-lPMV8', 'template_id': 'xZbMQQlcZjKTxz3d6xo5Z6byKt3_DwWmy3Ad46yUAn4', 'data': {'content': {'value': '今日无需打卡', 'color': '#173177'}}}
+2026-06-08 21:51:37.046 | DEBUG   | src.client:log_http_details:51 - === HTTP Response Details ===
+2026-06-08 21:51:37.046 | DEBUG   | src.client:log_http_details:52 - Status Code: 200
+2026-06-08 21:51:37.047 | DEBUG   | src.client:log_http_details:53 - Response Headers: {'Connection': 'keep-alive', 'Content-Type': 'application/json; encoding=utf-8', 'Date': 'Mon, 08 Jun 2026 13:51:36 GMT', 'Content-Length': '55'}
+2026-06-08 21:51:37.047 | DEBUG   | src.client:log_http_details:54 - Response Body: {"errcode":0,"errmsg":"ok","msgid":4552236266192666625}
+2026-06-08 21:51:37.047 | DEBUG   | src.client:log_http_details:55 - =============================
+2026-06-08 21:51:37.047 | SUCCESS | src.notifier:send_wechat_notification:86 - 微信测试号模板消息推送成功
